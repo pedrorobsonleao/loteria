@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🎯 Loteria Lab 2.0</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --primary:   #1a73e8;
+      --success:   #34a853;
+      --danger:    #ea4335;
+      --warn:      #fbbc04;
+      --bg:        #0f0f1a;
+      --surface:   #1c1c2e;
+      --surface2:  #252540;
+      --border:    #30305a;
+      --text:      #e8e8ff;
+      --muted:     #8888bb;
+      --radius:    12px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px 16px 60px;
+    }
+
+    /* ─── Header ─── */
+    header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    header h1 { font-size: clamp(1.6rem, 4vw, 2.4rem); font-weight: 800; letter-spacing: -0.5px; }
+    header h1 span { color: var(--warn); }
+    header p { color: var(--muted); margin-top: 6px; font-size: 0.95rem; }
+
+    /* ─── Controls ─── */
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      max-width: 900px;
+      margin: 0 auto 32px;
+      padding: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+
+    .ctrl-group { display: flex; flex-direction: column; gap: 6px; }
+    label { font-size: 0.78rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+    select, input[type=range], input[type=number] {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color .2s;
+      width: 100%;
+    }
+    select:focus, input:focus { border-color: var(--primary); }
+
+    .range-wrap { display: flex; align-items: center; gap: 8px; }
+    .range-val {
+      min-width: 36px; text-align: right;
+      font-size: 0.85rem; font-weight: 700; color: var(--warn);
+    }
+    input[type=range] { padding: 0; accent-color: var(--primary); }
+
+    .btn {
+      padding: 10px 20px;
+      border: none; border-radius: 8px;
+      font-size: 0.9rem; font-weight: 700;
+      cursor: pointer; transition: opacity .2s, transform .1s;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+
+    /* ─── Status / Error ─── */
+    .status-bar {
+      max-width: 900px; margin: 0 auto 20px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      display: none;
+    }
+    .status-bar.info  { background: #1a2a4a; border: 1px solid var(--primary); color: #88c0ff; display: block; }
+    .status-bar.error { background: #2a1a1a; border: 1px solid var(--danger);  color: #ff9090; display: block; }
+    .status-bar.warn  { background: #2a250a; border: 1px solid var(--warn);   color: #ffe080; display: block; }
+
+    /* ─── Spinner ─── */
+    .spinner {
+      display: none; width: 44px; height: 44px;
+      border: 4px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+      margin: 20px auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── Section cards ─── */
+    .output { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+    }
+    .card h2 {
+      font-size: 1rem; font-weight: 700;
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 16px; color: var(--text);
+    }
+    .card h2 .badge {
+      font-size: 0.7rem; padding: 2px 8px;
+      border-radius: 20px; background: var(--surface2);
+      color: var(--muted); font-weight: 600;
+    }
+
+    /* ─── Summary strip ─── */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+    }
+    .stat-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+    .stat-box .val { font-size: 1.4rem; font-weight: 800; color: var(--warn); }
+    .stat-box .lbl { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+
+    .last-draw {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      margin-top: 12px;
+    }
+    .ball {
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary) 0%, #0a4ab0 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 0.82rem; color: #fff;
+      box-shadow: 0 2px 8px #0006;
+    }
+
+    /* ─── Chart ─── */
+    .chart-container { position: relative; width: 100%; height: 260px; }
+
+    /* ─── Tables ─── */
+    .table-scroll { overflow-x: auto; }
+    table {
+      width: 100%; border-collapse: collapse;
+      font-size: 0.83rem;
+    }
+    thead th {
+      background: var(--surface2);
+      padding: 8px 12px;
+      text-align: left;
+      font-size: 0.72rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      color: var(--muted);
+      position: sticky; top: 0;
+    }
+    tbody tr { border-bottom: 1px solid var(--border); transition: background .15s; }
+    tbody tr:hover { background: var(--surface2); }
+    tbody td { padding: 7px 12px; }
+    .td-num { font-weight: 700; color: var(--warn); }
+    .bar-cell { display: flex; align-items: center; gap: 8px; }
+    .mini-bar { height: 8px; border-radius: 4px; background: var(--primary); opacity: .8; min-width: 2px; }
+
+    /* ─── Probability table ─── */
+    .prob-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .prob-row {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+    }
+    .prob-row .acertos { font-weight: 800; font-size: 1rem; color: var(--warn); }
+    .prob-row .chance  { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
+    .prob-row .ratio   { font-size: 0.82rem; color: var(--text);  margin-top: 2px; font-weight: 600; }
+
+    /* ─── Generated games ─── */
+    .games-list { display: flex; flex-direction: column; gap: 10px; }
+    .game-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    }
+    .game-num { font-size: 0.75rem; color: var(--muted); width: 52px; flex-shrink: 0; }
+    .balls-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ball-sm {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      background: var(--surface);
+      border: 2px solid var(--primary);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 0.72rem; color: var(--primary);
+    }
+    .ball-hot  { border-color: var(--danger);  color: var(--danger);  background: #1a0808; }
+    .ball-cold { border-color: #5588ff; color: #5588ff; background: #08081a; }
+
+    /* ─── History table ─── */
+    .history-wrap { max-height: 320px; overflow-y: auto; }
+
+    /* ─── Footer ─── */
+    footer {
+      text-align: center; margin-top: 48px;
+      font-size: 0.75rem; color: var(--muted);
+    }
+    footer a { color: var(--muted); }
+
+    /* ─── Tabs ─── */
+    .tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+    .tab-btn {
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: none; color: var(--muted);
+      font-size: 0.8rem; font-weight: 600;
+      cursor: pointer; transition: all .2s;
+    }
+    .tab-btn.active {
+      background: var(--primary); border-color: var(--primary);
+      color: #fff;
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ─── Progress ─── */
+    .progress-wrap { margin-bottom: 12px; display: none; }
+    .progress-bar {
+      height: 4px; background: var(--border); border-radius: 2px; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%; background: var(--primary);
+      transition: width .3s;
+      width: 0%;
+    }
+    .progress-label { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🎯 Loteria <span>Lab</span> 2.0</h1>
+  <p>Estatísticas históricas · Frequência · Probabilidades · Gerador de jogos</p>
+</header>
+
+<!-- Controls -->
+<div class="controls">
+
+  <div class="ctrl-group">
+    <label>Loteria</label>
+    <select id="sel-jogo">
+      <option value="megasena">Mega-Sena</option>
+      <option value="lotofacil">Lotofácil</option>
+      <option value="quina">Quina</option>
+      <option value="lotomania">Lotomania</option>
+    </select>
+  </div>
+
+  <div class="ctrl-group">
+    <label>Histórico (concursos)</label>
+    <div class="range-wrap">
+      <input type="range" id="sl-historico" min="10" max="200" step="10" value="50" />
+      <span class="range-val" id="lbl-historico">50</span>
+    </div>
+  </div>
+
+  <div class="ctrl-group">
+    <label>Jogos a gerar</label>
+    <div class="range-wrap">
+      <input type="range" id="sl-jogos" min="1" max="30" step="1" value="8" />
+      <span class="range-val" id="lbl-jogos">8</span>
+    </div>
+  </div>
+
+  <div class="ctrl-group">
+    <label>Método de geração</label>
+    <select id="sel-metodo">
+      <option value="aleatorio">Aleatório puro</option>
+      <option value="frequencia">Frequência histórica</option>
+    </select>
+  </div>
+
+  <div class="ctrl-group btn-row">
+    <button class="btn btn-primary" id="btn-analisar" onclick="iniciar()">🔍 Analisar</button>
+    <button class="btn btn-success" id="btn-gerar" onclick="gerarJogos()" disabled>🎲 Gerar jogos</button>
+  </div>
+
+</div>
+
+<!-- Status -->
+<div class="status-bar" id="status"></div>
+
+<!-- Spinner -->
+<div class="spinner" id="spinner"></div>
+
+<!-- Progress -->
+<div class="output" id="output" style="display:none">
+
+  <div class="progress-wrap" id="prog-wrap">
+    <div class="progress-bar"><div class="progress-fill" id="prog-fill"></div></div>
+    <div class="progress-label" id="prog-label"></div>
+  </div>
+
+  <!-- Summary -->
+  <div class="card" id="card-summary">
+    <h2>📊 Resumo do concurso <span class="badge" id="badge-jogo">—</span></h2>
+    <div class="summary-grid">
+      <div class="stat-box"><div class="val" id="stat-total">—</div><div class="lbl">Concursos analisados</div></div>
+      <div class="stat-box"><div class="val" id="stat-ultimo">—</div><div class="lbl">Último concurso</div></div>
+      <div class="stat-box"><div class="val" id="stat-data">—</div><div class="lbl">Data do último sorteio</div></div>
+      <div class="stat-box"><div class="val" id="stat-combinacoes">—</div><div class="lbl">Combinações possíveis</div></div>
+    </div>
+    <p style="font-size:.78rem;color:var(--muted);margin-top:10px">Últimas dezenas sorteadas:</p>
+    <div class="last-draw" id="last-draw"></div>
+  </div>
+
+  <!-- Chart + Frequency table (tabbed) -->
+  <div class="card">
+    <h2>📈 Frequência histórica</h2>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('chart','freq')">Gráfico</button>
+      <button class="tab-btn" onclick="switchTab('table-hot','freq')">🔥 Mais sorteadas</button>
+      <button class="tab-btn" onclick="switchTab('table-cold','freq')">❄️ Menos sorteadas</button>
+      <button class="tab-btn" onclick="switchTab('table-all','freq')">Todas</button>
+    </div>
+
+    <div id="freq-chart" class="tab-panel active">
+      <div class="chart-container"><canvas id="chart-freq"></canvas></div>
+    </div>
+
+    <div id="freq-table-hot" class="tab-panel">
+      <div class="table-scroll"><table id="tbl-hot"><thead><tr><th>#</th><th>Dezena</th><th>Ocorrências</th><th>Frequência (%)</th><th>Visualização</th></tr></thead><tbody></tbody></table></div>
+    </div>
+
+    <div id="freq-table-cold" class="tab-panel">
+      <div class="table-scroll"><table id="tbl-cold"><thead><tr><th>#</th><th>Dezena</th><th>Ocorrências</th><th>Frequência (%)</th><th>Visualização</th></tr></thead><tbody></tbody></table></div>
+    </div>
+
+    <div id="freq-table-all" class="tab-panel">
+      <div class="table-scroll"><table id="tbl-all"><thead><tr><th>Dezena</th><th>Ocorrências</th><th>Frequência (%)</th><th>Visualização</th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- Probability -->
+  <div class="card">
+    <h2>🎲 Tabela de probabilidades</h2>
+    <div class="prob-grid" id="prob-grid"></div>
+    <p style="font-size:.72rem;color:var(--muted);margin-top:14px">
+      ⚠️ Probabilidades são teóricas, calculadas combinatoriamente. Frequência passada não garante resultados futuros.
+    </p>
+  </div>
+
+  <!-- Games -->
+  <div class="card" id="card-jogos" style="display:none">
+    <h2>🎲 Jogos gerados <span class="badge" id="badge-metodo">—</span></h2>
+    <div class="games-list" id="games-list"></div>
+    <p style="font-size:.72rem;color:var(--muted);margin-top:14px">
+      🔴 dezena quente (top 25%) · 🔵 dezena fria (bottom 25%) · ⚪ neutra
+    </p>
+  </div>
+
+  <!-- History -->
+  <div class="card">
+    <h2>📋 Histórico de concursos <span class="badge" id="badge-hist">—</span></h2>
+    <div class="history-wrap table-scroll">
+      <table id="tbl-history">
+        <thead><tr><th>Concurso</th><th>Data</th><th>Dezenas sorteadas</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <p>Dados: <a href="https://loterias.caixa.gov.br" target="_blank">Caixa Econômica Federal</a> &mdash; Loteria Lab 2.0 &copy; 2025</p>
+  <p style="margin-top:6px">⚠️ Apenas fins educacionais. Jogar pode causar dependência. Proibido para menores de 18 anos.</p>
+</footer>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   CONFIGURAÇÃO DOS JOGOS
+   ═══════════════════════════════════════════════════════════════ */
+const JOGOS = {
+  megasena:  { nome: "Mega-Sena",  universo: 60,  dezenas: 6,  inicio: 1,  premios: [4,5,6] },
+  lotofacil: { nome: "Lotofácil",  universo: 25,  dezenas: 15, inicio: 1,  premios: [11,12,13,14,15] },
+  quina:     { nome: "Quina",      universo: 80,  dezenas: 5,  inicio: 1,  premios: [2,3,4,5] },
+  lotomania: { nome: "Lotomania",  universo: 100, dezenas: 20, inicio: 0,  premios: [15,16,17,18,19,20] },
+};
+
+const BASE = "https://servicebus2.caixa.gov.br/portaldeloterias/api";
+
+/* ═══════════════════════════════════════════════════════════════
+   ESTADO
+   ═══════════════════════════════════════════════════════════════ */
+let estadoAtual = {
+  historico: [],
+  ranking: [],
+  jogo: null,
+};
+
+let freqChart = null;
+
+/* ═══════════════════════════════════════════════════════════════
+   UI HELPERS
+   ═══════════════════════════════════════════════════════════════ */
+function setStatus(msg, tipo = "info") {
+  const el = document.getElementById("status");
+  el.className = `status-bar ${tipo}`;
+  el.textContent = msg;
+}
+
+function clearStatus() {
+  const el = document.getElementById("status");
+  el.className = "status-bar";
+  el.textContent = "";
+}
+
+function setSpinner(on) {
+  document.getElementById("spinner").style.display = on ? "block" : "none";
+}
+
+function setProgress(pct, label) {
+  const wrap = document.getElementById("prog-wrap");
+  wrap.style.display = pct < 100 ? "block" : "none";
+  document.getElementById("prog-fill").style.width = pct + "%";
+  document.getElementById("prog-label").textContent = label || "";
+}
+
+function nf(n) {
+  return n.toLocaleString("pt-BR");
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RANGE INPUTS
+   ═══════════════════════════════════════════════════════════════ */
+document.getElementById("sl-historico").addEventListener("input", e => {
+  document.getElementById("lbl-historico").textContent = e.target.value;
+});
+document.getElementById("sl-jogos").addEventListener("input", e => {
+  document.getElementById("lbl-jogos").textContent = e.target.value;
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   TABS
+   ═══════════════════════════════════════════════════════════════ */
+function switchTab(panelId, group) {
+  const tabs   = document.querySelectorAll(`.tabs .tab-btn`);
+  const panels = document.querySelectorAll(`.tab-panel`);
+  panels.forEach(p => p.classList.remove("active"));
+  tabs.forEach(t => t.classList.remove("active"));
+  const panel = document.getElementById(`freq-${panelId}`);
+  if (panel) {
+    panel.classList.add("active");
+    event.currentTarget.classList.add("active");
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FETCH COM RETRY + TIMEOUT
+   ═══════════════════════════════════════════════════════════════ */
+async function fetchJSON(url, tentativas = 2) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), 20000);
+  let ultima;
+  for (let t = 0; t < tentativas; t++) {
+    try {
+      const r = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          "Accept": "application/json, text/plain, */*",
+          "Origin": "https://loterias.caixa.gov.br",
+        }
+      });
+      clearTimeout(id);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return await r.json();
+    } catch (err) {
+      ultima = err;
+      if (t < tentativas - 1) await new Promise(r => setTimeout(r, 800));
+    }
+  }
+  throw ultima;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   OBTER HISTÓRICO (com progresso)
+   ═══════════════════════════════════════════════════════════════ */
+async function obterHistorico(slug, quantidade) {
+  setStatus("Conectando à API da Caixa…", "info");
+  const ultimo = await fetchJSON(`${BASE}/${slug}`);
+  const numeroAtual = parseInt(ultimo.numero, 10);
+
+  const resultados = [];
+  const ini = Math.max(1, numeroAtual - quantidade + 1);
+  const total = numeroAtual - ini + 1;
+  let ok = 0, falhas = 0;
+
+  // concurso mais recente já temos
+  const dezUlt = ultimo.listaDezenas;
+  if (dezUlt && dezUlt.length) {
+    resultados.push({
+      Concurso: parseInt(ultimo.numero, 10),
+      Data: ultimo.dataApuracao || "",
+      Dezenas: dezUlt.map(Number).sort((a, b) => a - b),
+    });
+    ok++;
+  }
+
+  // buscar os demais em paralelo (lotes de 8)
+  const nums = [];
+  for (let n = numeroAtual - 1; n >= ini; n--) nums.push(n);
+
+  const LOTE = 8;
+  for (let i = 0; i < nums.length; i += LOTE) {
+    const lote = nums.slice(i, i + LOTE);
+    const promessas = lote.map(n =>
+      fetchJSON(`${BASE}/${slug}/${n}`)
+        .then(item => {
+          const dez = item.listaDezenas;
+          if (dez && dez.length) {
+            resultados.push({
+              Concurso: parseInt(item.numero, 10),
+              Data: item.dataApuracao || "",
+              Dezenas: dez.map(Number).sort((a, b) => a - b),
+            });
+          }
+          ok++;
+        })
+        .catch(() => { falhas++; })
+    );
+    await Promise.all(promessas);
+
+    const pct = Math.round((ok + falhas) / total * 100);
+    setProgress(pct, `Carregando concursos… ${ok + falhas}/${total}`);
+    setStatus(`Carregando ${ok + falhas} de ${total} concursos…`, "info");
+  }
+
+  if (!resultados.length)
+    throw new Error("Nenhum resultado obtido. A API pode estar bloqueando o acesso.");
+
+  setProgress(100, "");
+  return resultados.sort((a, b) => a.Concurso - b.Concurso);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   COMBINATÓRIA
+   ═══════════════════════════════════════════════════════════════ */
+function comb(n, k) {
+  if (k > n) return 0;
+  if (k === 0 || k === n) return 1;
+  let r = 1;
+  for (let i = 0; i < k; i++) {
+    r = r * (n - i) / (i + 1);
+  }
+  return Math.round(r);
+}
+
+/* Probabilidade de acertar exatamente `acertos` em um jogo simples */
+function probAcertar(universo, dezJogo, acertos, dezSorteadas) {
+  // C(dezSorteadas, acertos) * C(universo - dezSorteadas, dezJogo - acertos) / C(universo, dezJogo)
+  const favoraveis = comb(dezSorteadas, acertos) * comb(universo - dezSorteadas, dezJogo - acertos);
+  const total = comb(universo, dezJogo);
+  return favoraveis / total;
+}
+
+function formatarChance(prob) {
+  if (prob <= 0) return "Impossível";
+  const razao = Math.round(1 / prob);
+  return `1 em ${nf(razao)}`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ANALISAR – PONTO DE ENTRADA PRINCIPAL
+   ═══════════════════════════════════════════════════════════════ */
+async function iniciar() {
+  const slug     = document.getElementById("sel-jogo").value;
+  const qtd      = parseInt(document.getElementById("sl-historico").value, 10);
+  const regra    = JOGOS[slug];
+
+  document.getElementById("btn-analisar").disabled = true;
+  document.getElementById("btn-gerar").disabled    = true;
+  document.getElementById("output").style.display  = "none";
+  setSpinner(true);
+  clearStatus();
+
+  try {
+    const historico = await obterHistorico(slug, qtd);
+    estadoAtual.historico = historico;
+    estadoAtual.jogo = regra;
+    estadoAtual.slug = slug;
+
+    // Contagem
+    const contador = {};
+    for (let n = regra.inicio; n <= regra.universo; n++) contador[n] = 0;
+    for (const c of historico) for (const d of c.Dezenas) contador[d] = (contador[d] || 0) + 1;
+
+    const totalConcursos = historico.length;
+
+    const ranking = Object.entries(contador).map(([dezena, occ]) => ({
+      dezena: parseInt(dezena, 10),
+      ocorrencias: occ,
+      freq: totalConcursos ? (occ / totalConcursos * 100) : 0,
+    })).sort((a, b) => a.dezena - b.dezena);
+
+    estadoAtual.ranking = ranking;
+
+    // Renderizar seções
+    renderSummary(historico, regra, slug, totalConcursos);
+    renderChart(ranking);
+    renderTables(ranking, totalConcursos);
+    renderProbabilidades(regra, slug);
+    renderHistorico(historico);
+
+    document.getElementById("output").style.display = "flex";
+    document.getElementById("btn-gerar").disabled = false;
+    clearStatus();
+    setStatus(`✅ ${totalConcursos} concursos carregados com sucesso.`, "info");
+
+  } catch (err) {
+    setStatus(`❌ Erro: ${err.message}. Verifique sua conexão e tente novamente.`, "error");
+  } finally {
+    setSpinner(false);
+    document.getElementById("btn-analisar").disabled = false;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SUMMARY
+   ═══════════════════════════════════════════════════════════════ */
+function renderSummary(historico, regra, slug, totalConcursos) {
+  const ultimo = historico[historico.length - 1];
+  const nomeJogo = regra.nome;
+  const combinacoes = comb(regra.universo, regra.dezenas);
+
+  document.getElementById("badge-jogo").textContent      = nomeJogo;
+  document.getElementById("stat-total").textContent      = totalConcursos;
+  document.getElementById("stat-ultimo").textContent     = `#${nf(ultimo.Concurso)}`;
+  document.getElementById("stat-data").textContent       = ultimo.Data || "—";
+  document.getElementById("stat-combinacoes").textContent = abreviar(combinacoes);
+
+  const lastDraw = document.getElementById("last-draw");
+  lastDraw.innerHTML = "";
+  for (const d of ultimo.Dezenas) {
+    const ball = document.createElement("div");
+    ball.className = "ball";
+    ball.textContent = String(d).padStart(2, "0");
+    lastDraw.appendChild(ball);
+  }
+}
+
+function abreviar(n) {
+  if (n >= 1e12) return (n / 1e12).toFixed(1) + " tri";
+  if (n >= 1e9)  return (n / 1e9).toFixed(1) + " bi";
+  if (n >= 1e6)  return (n / 1e6).toFixed(1) + " mi";
+  return nf(n);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CHART
+   ═══════════════════════════════════════════════════════════════ */
+function renderChart(ranking) {
+  const maxOcc = Math.max(...ranking.map(r => r.ocorrencias));
+  const labels = ranking.map(r => String(r.dezena).padStart(2, "0"));
+  const data   = ranking.map(r => r.ocorrencias);
+  const cores  = ranking.map(r => {
+    const ratio = r.ocorrencias / maxOcc;
+    if (ratio >= 0.75) return "rgba(234,67,53,0.85)";
+    if (ratio <= 0.25) return "rgba(85,136,255,0.85)";
+    return "rgba(26,115,232,0.7)";
+  });
+
+  const ctx = document.getElementById("chart-freq").getContext("2d");
+  if (freqChart) freqChart.destroy();
+
+  freqChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{
+        label: "Aparições",
+        data,
+        backgroundColor: cores,
+        borderRadius: 4,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.parsed.y} aparições`,
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: "#8888bb", font: { size: 10 }, maxRotation: 90 },
+          grid:  { color: "rgba(255,255,255,0.04)" },
+        },
+        y: {
+          ticks: { color: "#8888bb", font: { size: 10 } },
+          grid:  { color: "rgba(255,255,255,0.06)" },
+        }
+      }
+    }
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FREQUENCY TABLES
+   ═══════════════════════════════════════════════════════════════ */
+function renderTables(ranking, totalConcursos) {
+  const sorted    = [...ranking].sort((a, b) => b.ocorrencias - a.ocorrencias || a.dezena - b.dezena);
+  const maxOcc    = sorted[0]?.ocorrencias || 1;
+
+  // All
+  buildFreqTable("tbl-all", sorted, maxOcc, false);
+  // Hot (top 15)
+  buildFreqTable("tbl-hot", sorted.slice(0, 15), maxOcc, true);
+  // Cold (bottom 15)
+  const cold = [...ranking].sort((a, b) => a.ocorrencias - b.ocorrencias || a.dezena - b.dezena).slice(0, 15);
+  buildFreqTable("tbl-cold", cold, maxOcc, true);
+}
+
+function buildFreqTable(tableId, data, maxOcc, withRank) {
+  const tbody = document.querySelector(`#${tableId} tbody`);
+  tbody.innerHTML = "";
+  data.forEach((row, i) => {
+    const pct = (row.ocorrencias / maxOcc * 100).toFixed(0);
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      ${withRank ? `<td>${i + 1}</td>` : ""}
+      <td class="td-num">${String(row.dezena).padStart(2, "0")}</td>
+      <td>${row.ocorrencias}</td>
+      <td>${row.freq.toFixed(2)}%</td>
+      <td>
+        <div class="bar-cell">
+          <div class="mini-bar" style="width:${pct}%; max-width:120px"></div>
+          <span style="font-size:.72rem;color:var(--muted)">${pct}%</span>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PROBABILIDADES
+   ═══════════════════════════════════════════════════════════════ */
+function renderProbabilidades(regra, slug) {
+  const grid = document.getElementById("prob-grid");
+  grid.innerHTML = "";
+  const { universo, dezenas, premios } = regra;
+
+  // Aposta simples (dezenas mínimas)
+  const labelsPremio = {
+    megasena:  { 4: "Quadra", 5: "Quina", 6: "Sena (Jackpot)" },
+    lotofacil: { 11:"11 pontos",12:"12 pontos",13:"13 pontos",14:"14 pontos",15:"15 pontos (Jackpot)" },
+    quina:     { 2:"Duque",3:"Terno",4:"Quadra",5:"Quina (Jackpot)" },
+    lotomania: { 15:"15 pontos",16:"16 pontos",17:"17 pontos",18:"18 pontos",19:"19 pontos",20:"20 pontos (Jackpot)" },
+  };
+
+  const labels = labelsPremio[slug] || {};
+
+  for (const acertos of premios) {
+    const p = probAcertar(universo, dezenas, acertos, dezenas);
+    const div = document.createElement("div");
+    div.className = "prob-row";
+    div.innerHTML = `
+      <div class="acertos">${labels[acertos] || acertos + " acertos"}</div>
+      <div class="chance">${(p * 100).toExponential(3)}%</div>
+      <div class="ratio">${formatarChance(p)}</div>
+    `;
+    grid.appendChild(div);
+  }
+
+  // Total de combinações
+  const tot = comb(universo, dezenas);
+  const divTot = document.createElement("div");
+  divTot.className = "prob-row";
+  divTot.style.gridColumn = "1 / -1";
+  divTot.innerHTML = `
+    <div class="acertos">Total de combinações válidas</div>
+    <div class="chance" style="font-size:.85rem;color:var(--text)">${nf(tot)}</div>
+    <div class="ratio" style="color:var(--muted)">C(${universo},${dezenas})</div>
+  `;
+  grid.appendChild(divTot);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   HISTÓRICO
+   ═══════════════════════════════════════════════════════════════ */
+function renderHistorico(historico) {
+  document.getElementById("badge-hist").textContent = `${historico.length} concursos`;
+  const tbody = document.querySelector("#tbl-history tbody");
+  tbody.innerHTML = "";
+  const slice = [...historico].reverse();
+  for (const h of slice) {
+    const tr = document.createElement("tr");
+    const bolas = h.Dezenas.map(d =>
+      `<span style="display:inline-block;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-weight:700;font-size:.78rem;margin:1px">${String(d).padStart(2,"0")}</span>`
+    ).join(" ");
+    tr.innerHTML = `
+      <td class="td-num">#${nf(h.Concurso)}</td>
+      <td style="color:var(--muted)">${h.Data}</td>
+      <td>${bolas}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   GERADOR DE JOGOS
+   ═══════════════════════════════════════════════════════════════ */
+function gerarJogos() {
+  const { ranking, jogo } = estadoAtual;
+  if (!ranking.length || !jogo) return;
+
+  const qtd     = parseInt(document.getElementById("sl-jogos").value, 10);
+  const metodo  = document.getElementById("sel-metodo").value;
+  const sorted  = [...ranking].sort((a, b) => b.ocorrencias - a.ocorrencias);
+  const maxOcc  = sorted[0]?.ocorrencias || 1;
+  const top25   = new Set(sorted.slice(0, Math.ceil(sorted.length * .25)).map(r => r.dezena));
+  const bot25   = new Set(sorted.slice(-Math.ceil(sorted.length * .25)).map(r => r.dezena));
+
+  const dezenas = ranking.map(r => r.dezena);
+  let pesos;
+
+  if (metodo === "frequencia") {
+    pesos = ranking.map(r => r.ocorrencias + 1);
+    const soma = pesos.reduce((a, b) => a + b, 0);
+    pesos = pesos.map(p => p / soma);
+  } else {
+    pesos = new Array(dezenas.length).fill(1 / dezenas.length);
+  }
+
+  const jogosGerados = new Set();
+  let tentativas = 0;
+
+  while (jogosGerados.size < qtd && tentativas < 100000) {
+    tentativas++;
+    const sorteio = amostraSemReposicao(dezenas, pesos, jogo.dezenas);
+    jogosGerados.add(sorteio.sort((a, b) => a - b).join(","));
+  }
+
+  const lista = [...jogosGerados].map(s => s.split(",").map(Number));
+
+  document.getElementById("badge-metodo").textContent =
+    metodo === "frequencia" ? "Freq. histórica" : "Aleatório";
+
+  const gamesEl = document.getElementById("games-list");
+  gamesEl.innerHTML = "";
+
+  for (let i = 0; i < lista.length; i++) {
+    const jg = lista[i];
+    const div = document.createElement("div");
+    div.className = "game-item";
+    div.innerHTML = `<div class="game-num">Jogo ${String(i + 1).padStart(2, "0")}</div>`;
+    const balls = document.createElement("div");
+    balls.className = "balls-row";
+    for (const d of jg) {
+      const ball = document.createElement("div");
+      ball.className = "ball-sm" + (top25.has(d) ? " ball-hot" : bot25.has(d) ? " ball-cold" : "");
+      ball.textContent = String(d).padStart(2, "0");
+      balls.appendChild(ball);
+    }
+    div.appendChild(balls);
+    gamesEl.appendChild(div);
+  }
+
+  document.getElementById("card-jogos").style.display = "block";
+  document.getElementById("card-jogos").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/* Amostragem sem reposição com pesos (algoritmo de Efraimidis-Spirakis) */
+function amostraSemReposicao(populacao, pesos, k) {
+  const keys = populacao.map((_, i) => Math.pow(Math.random(), 1 / pesos[i]));
+  const indices = keys
+    .map((k, i) => [k, i])
+    .sort((a, b) => b[0] - a[0])
+    .slice(0, k)
+    .map(([, i]) => i);
+  return indices.map(i => populacao[i]);
+}
+</script>
+
+</body>
+</html>

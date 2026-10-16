@@ -906,8 +906,17 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; 
 
     <!-- HEATMAP CARD -->
     <div class="card fade-in" style="margin-bottom:16px;">
-      <div class="section-title">🌡️ Mapa de Calor</div>
+      <div class="section-title">🌡️ Mapa de Calor — Frequência por Dezena</div>
       <div id="heatmap-grid"></div>
+      <!-- Color scale legend -->
+      <div style="margin-top:14px;display:flex;align-items:center;gap:10px;font-size:0.74rem;">
+        <span style="color:var(--text-muted)">❄️ Fria</span>
+        <div style="flex:1;height:10px;border-radius:5px;background:linear-gradient(to right,rgb(30,80,220),rgb(0,200,210),rgb(30,190,50),rgb(230,200,0),rgb(230,40,30));"></div>
+        <span style="color:var(--text-muted)">🔥 Quente</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-muted);margin-top:3px;padding:0 2px;">
+        <span>Menos sorteadas</span><span>Mais sorteadas</span>
+      </div>
     </div>
 
     <!-- FREQUENCY TABLES -->
@@ -1156,6 +1165,47 @@ async function obterHistorico(jogoKey) {
 }
 
 /* =============================================
+   HEAT COLOR SCALE
+   Maps t ∈ [0,1]:  0=cold(blue) → 0.25=cyan → 0.5=green → 0.75=yellow → 1=hot(red)
+============================================= */
+function heatColor(t) {
+  t = Math.max(0, Math.min(1, t));
+  const stops = [
+    [0,    [30,  80, 220]],
+    [0.25, [0,  200, 210]],
+    [0.5,  [30, 190,  50]],
+    [0.75, [230,200,   0]],
+    [1.0,  [230,  40,  30]],
+  ];
+  let i = 0;
+  while (i < stops.length - 2 && t > stops[i+1][0]) i++;
+  const [t0, c0] = stops[i];
+  const [t1, c1] = stops[i+1];
+  const f = (t - t0) / (t1 - t0);
+  const r = Math.round(c0[0] + (c1[0]-c0[0])*f);
+  const g = Math.round(c0[1] + (c1[1]-c0[1])*f);
+  const b = Math.round(c0[2] + (c1[2]-c0[2])*f);
+  return `rgb(${r},${g},${b})`;
+}
+
+function getFreqColor(num) {
+  const freq = STATE.frequencia;
+  const vals = Object.values(freq);
+  const minV = Math.min(...vals);
+  const maxV = Math.max(...vals);
+  const v = freq[num] || 0;
+  const t = maxV === minV ? 0.5 : (v - minV) / (maxV - minV);
+  return heatColor(t);
+}
+
+function contrastText(rgbStr) {
+  const m = rgbStr.match(/\d+/g);
+  if (!m) return '#fff';
+  const [r,g,b] = m.map(Number);
+  return (0.299*r + 0.587*g + 0.114*b) > 150 ? '#111' : '#fff';
+}
+
+/* =============================================
    MATH
 ============================================= */
 function comb(n, k) {
@@ -1239,7 +1289,11 @@ function renderSummary() {
     el.style.animationDelay = `${i * 0.08}s`;
     el.textContent = String(d).padStart(2,'0');
     const cnt = STATE.frequencia[Number(d)] || 0;
-    el.setAttribute('data-tooltip', `Dezena ${d} — ${cnt}x no histórico`);
+    const bg = getFreqColor(Number(d));
+    const fg = contrastText(bg);
+    el.style.background = bg;
+    el.style.color = fg;
+    el.setAttribute('data-tooltip', `Dezena ${d} — ${cnt}× no histórico`);
     ballsWrap.appendChild(el);
   });
 }
@@ -1478,7 +1532,6 @@ function renderComparisonChart(canvasId, jogoKey, historia) {
    RENDER HEATMAP
 ============================================= */
 function renderHeatmap() {
-  const j = jogo();
   const freq = STATE.frequencia;
   const nums = Object.keys(freq).map(Number).sort((a,b)=>a-b);
   const vals = nums.map(n => freq[n]);
@@ -1493,18 +1546,15 @@ function renderHeatmap() {
   nums.forEach(n => {
     const v = freq[n];
     const t = (v - minV) / (maxV - minV || 1);
+    const bg = heatColor(t);
+    const fg = contrastText(bg);
     const cell = document.createElement('div');
     cell.className = 'hm-cell';
-    // Color from very dark to lottery color
-    const r1=10,g1=10,b1=30; // cold color
-    const [rs,gs,bs] = j.cor.slice(1).match(/.{2}/g).map(h=>parseInt(h,16));
-    const r = Math.round(r1 + (rs-r1)*t);
-    const g = Math.round(g1 + (gs-g1)*t);
-    const b = Math.round(b1 + (bs-b1)*t);
-    cell.style.background = `rgb(${r},${g},${b})`;
-    cell.style.opacity = 0.5 + t*0.5;
+    cell.style.background = bg;
+    cell.style.color = fg;
     cell.textContent = String(n).padStart(2,'0');
-    cell.setAttribute('data-tooltip', `Dezena ${n}: ${v}×`);
+    const label = t >= 0.75 ? '🔥' : t <= 0.25 ? '❄️' : '';
+    cell.setAttribute('data-tooltip', `${label} Dezena ${n}: ${v}× (${(t*100).toFixed(0)}% intensidade)`);
     grid.appendChild(cell);
   });
 }
@@ -1523,12 +1573,14 @@ function renderFreqTables() {
     return arr.map((item, i) => {
       const pct = ((item.cnt / total) * 100).toFixed(2);
       const barW = Math.round((item.cnt / maxV) * 100);
+      const bg = getFreqColor(item.num);
+      const fg = contrastText(bg);
       return `<tr>
         <td>${i+1}</td>
-        <td><div class="ball ball-xs" style="background:${j.cor};box-shadow:none;display:inline-flex;">${String(item.num).padStart(2,'0')}</div></td>
+        <td><div class="ball ball-xs" style="background:${bg};color:${fg};box-shadow:none;display:inline-flex;">${String(item.num).padStart(2,'0')}</div></td>
         <td>${item.cnt}</td>
         <td>${pct}%</td>
-        <td><div class="freq-bar-bg" style="width:80px;"><div class="freq-bar" style="width:${barW}%"></div></div></td>
+        <td><div class="freq-bar-bg" style="width:80px;"><div class="freq-bar" style="width:${barW}%;background:${bg};"></div></div></td>
       </tr>`;
     }).join('');
   }
@@ -1599,7 +1651,9 @@ function renderHistory(filterNum = null) {
     const highlight = filterNum && dezs.includes(filterNum);
     const ballsHTML = dezs.map(d => {
       const cnt = freqMap[d] || 0;
-      return `<div class="ball ball-xs" style="background:${j.cor};box-shadow:none;margin:2px;display:inline-flex;" data-tooltip="Dezena ${d} — ${cnt}× no histórico">${String(d).padStart(2,'0')}</div>`;
+      const bg = getFreqColor(d);
+      const fg = contrastText(bg);
+      return `<div class="ball ball-xs" style="background:${bg};color:${fg};box-shadow:none;margin:2px;display:inline-flex;" data-tooltip="Dezena ${d} — ${cnt}× no histórico">${String(d).padStart(2,'0')}</div>`;
     }).join('');
     return `<tr class="${highlight ? 'highlight-row' : ''}">
       <td>#${c.numero||''}</td>
@@ -1663,7 +1717,12 @@ function renderGames() {
           <button class="btn btn-ghost" data-share="${i}">📤 Compartilhar</button>
         </div>
       </div>
-      <div class="balls-container">${game.map(n=>`<div class="ball ball-sm" style="background:${j.cor};">${String(n).padStart(2,'0')}</div>`).join('')}</div>
+      <div class="balls-container">${game.map(n=>{
+        const bg = getFreqColor(n);
+        const fg = contrastText(bg);
+        const cnt = STATE.frequencia[n] || 0;
+        return `<div class="ball ball-sm" style="background:${bg};color:${fg};" data-tooltip="Dezena ${n} — ${cnt}× no histórico">${String(n).padStart(2,'0')}</div>`;
+      }).join('')}</div>
     `;
     list.appendChild(div);
   });
@@ -1719,7 +1778,7 @@ function renderFavorites() {
         <span style="font-size:0.82rem;color:var(--text-muted);">⭐ ${fav.nome} — ${fav.date}</span>
         <button class="btn btn-danger" data-delfav="${i}">🗑️</button>
       </div>
-      <div class="balls-container">${fav.nums.map(n=>`<div class="ball ball-sm" style="background:${j.cor};">${String(n).padStart(2,'0')}</div>`).join('')}</div>
+      <div class="balls-container">${fav.nums.map(n=>`<div class="ball ball-sm" style="background:${getFreqColor(n)};color:${contrastText(getFreqColor(n))};">${String(n).padStart(2,'0')}</div>`).join('')}</div>
     </div>`;
   }).join('');
 }

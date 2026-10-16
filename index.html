@@ -1,917 +1,1978 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="dark">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>🎯 Loteria Lab 2.0</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <style>
-    :root {
-      --primary:   #1a73e8;
-      --success:   #34a853;
-      --danger:    #ea4335;
-      --warn:      #fbbc04;
-      --bg:        #0f0f1a;
-      --surface:   #1c1c2e;
-      --surface2:  #252540;
-      --border:    #30305a;
-      --text:      #e8e8ff;
-      --muted:     #8888bb;
-      --radius:    12px;
-    }
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Loteria Lab 2.0</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+<style>
+/* =============================================
+   CSS VARIABLES & RESET
+============================================= */
+:root {
+  --lottery-color: #00a650;
+  --lottery-color-rgb: 0, 166, 80;
+  --bg: #0a0a18;
+  --surface: rgba(255,255,255,0.05);
+  --surface-hover: rgba(255,255,255,0.09);
+  --border: rgba(255,255,255,0.12);
+  --text: #e8eaf6;
+  --text-muted: #9099b0;
+  --text-inv: #0a0a18;
+  --card-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  --radius: 16px;
+  --radius-sm: 8px;
+  --transition: 0.3s ease;
+  --input-bg: rgba(255,255,255,0.08);
+  --input-border: rgba(255,255,255,0.18);
+  --btn-text: #fff;
+}
+[data-theme="light"] {
+  --bg: #f0f4f8;
+  --surface: rgba(255,255,255,0.85);
+  --surface-hover: rgba(255,255,255,0.95);
+  --border: rgba(0,0,0,0.1);
+  --text: #1a1a2e;
+  --text-muted: #5a6270;
+  --text-inv: #fff;
+  --card-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  --input-bg: rgba(255,255,255,0.7);
+  --input-border: rgba(0,0,0,0.15);
+  --btn-text: #fff;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  transition: background var(--transition), color var(--transition);
+  overflow-x: hidden;
+}
 
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* =============================================
+   ANIMATED AURORA HEADER
+============================================= */
+#app-header {
+  position: relative;
+  padding: 28px 24px 32px;
+  text-align: center;
+  overflow: hidden;
+}
+#app-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--lottery-color) 60%, #0a0a18 40%) 0%,
+    #0a0a18 30%,
+    color-mix(in srgb, var(--lottery-color) 40%, #111135 60%) 60%,
+    #0a0a18 100%
+  );
+  animation: aurora 8s ease-in-out infinite alternate;
+  z-index: 0;
+}
+[data-theme="light"] #app-header::before {
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--lottery-color) 70%, #f0f4f8 30%) 0%,
+    #e2eaf6 30%,
+    color-mix(in srgb, var(--lottery-color) 50%, #d8e6f8 50%) 60%,
+    #e2eaf6 100%
+  );
+}
+#app-header::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 20% 50%, rgba(var(--lottery-color-rgb),0.25) 0%, transparent 60%),
+              radial-gradient(ellipse at 80% 20%, rgba(var(--lottery-color-rgb),0.15) 0%, transparent 50%);
+  animation: aurora2 10s ease-in-out infinite alternate;
+  z-index: 0;
+}
+@keyframes aurora {
+  0%   { filter: hue-rotate(0deg) brightness(1); }
+  50%  { filter: hue-rotate(20deg) brightness(1.1); }
+  100% { filter: hue-rotate(-15deg) brightness(0.95); }
+}
+@keyframes aurora2 {
+  0%   { opacity: 0.6; transform: scale(1); }
+  50%  { opacity: 1;   transform: scale(1.05); }
+  100% { opacity: 0.7; transform: scale(0.98); }
+}
+#app-header > * { position: relative; z-index: 1; }
+#header-title {
+  font-size: clamp(1.6rem, 4vw, 2.6rem);
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.5);
+  letter-spacing: -0.5px;
+}
+#header-subtitle {
+  color: rgba(255,255,255,0.8);
+  margin-top: 4px;
+  font-size: 0.95rem;
+}
+#countdown-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0,0,0,0.3);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 50px;
+  padding: 6px 18px;
+  margin-top: 12px;
+  font-size: 0.9rem;
+  color: #fff;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+#countdown-display .cd-icon { font-size: 1rem; }
+#countdown-timer { font-variant-numeric: tabular-nums; }
 
-    body {
-      font-family: 'Segoe UI', system-ui, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      padding: 24px 16px 60px;
-    }
+/* =============================================
+   HEADER CONTROLS
+============================================= */
+#header-controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 10;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.icon-btn {
+  background: rgba(0,0,0,0.35);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.25);
+  color: #fff;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-btn:hover { background: rgba(0,0,0,0.55); transform: scale(1.08); }
 
-    /* ─── Header ─── */
-    header {
-      text-align: center;
-      margin-bottom: 32px;
-    }
-    header h1 { font-size: clamp(1.6rem, 4vw, 2.4rem); font-weight: 800; letter-spacing: -0.5px; }
-    header h1 span { color: var(--warn); }
-    header p { color: var(--muted); margin-top: 6px; font-size: 0.95rem; }
+/* =============================================
+   MAIN LAYOUT
+============================================= */
+#main-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px 60px;
+}
+.section-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 14px;
+  color: var(--lottery-color);
+  letter-spacing: 0.3px;
+}
 
-    /* ─── Controls ─── */
-    .controls {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 16px;
-      max-width: 900px;
-      margin: 0 auto 32px;
-      padding: 20px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-    }
+/* =============================================
+   GLASSMORPHISM CARDS
+============================================= */
+.card {
+  background: var(--surface);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px;
+  box-shadow: var(--card-shadow);
+  transition: background var(--transition), border-color var(--transition), box-shadow var(--transition);
+}
+.card:hover { box-shadow: var(--card-shadow), 0 0 0 1px rgba(var(--lottery-color-rgb),0.2); }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+@media(max-width:768px) {
+  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+}
 
-    .ctrl-group { display: flex; flex-direction: column; gap: 6px; }
-    label { font-size: 0.78rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+/* =============================================
+   CONTROLS BAR
+============================================= */
+#controls-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 20px;
+}
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-group label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+select, input[type="text"], input[type="number"], textarea {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+  backdrop-filter: blur(8px);
+}
+select:focus, input:focus, textarea:focus {
+  border-color: var(--lottery-color);
+  box-shadow: 0 0 0 3px rgba(var(--lottery-color-rgb),0.18);
+}
+select option { background: #1a1a2e; color: #fff; }
+[data-theme="light"] select option { background: #fff; color: #1a1a2e; }
 
-    select, input[type=range], input[type=number] {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      color: var(--text);
-      border-radius: 8px;
-      padding: 8px 10px;
-      font-size: 0.9rem;
-      outline: none;
-      transition: border-color .2s;
-      width: 100%;
-    }
-    select:focus, input:focus { border-color: var(--primary); }
+/* =============================================
+   BUTTONS
+============================================= */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 20px;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  transition: all var(--transition);
+  font-family: inherit;
+  white-space: nowrap;
+}
+.btn-primary {
+  background: var(--lottery-color);
+  color: var(--btn-text);
+  box-shadow: 0 4px 15px rgba(var(--lottery-color-rgb),0.4);
+}
+.btn-primary:hover { filter: brightness(1.12); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(var(--lottery-color-rgb),0.55); }
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover { background: var(--surface-hover); }
+.btn-ghost {
+  background: transparent;
+  color: var(--lottery-color);
+  border: 1px solid var(--lottery-color);
+  padding: 6px 12px;
+  font-size: 0.8rem;
+}
+.btn-ghost:hover { background: rgba(var(--lottery-color-rgb),0.12); }
+.btn-danger {
+  background: rgba(220,50,50,0.15);
+  color: #f44;
+  border: 1px solid rgba(220,50,50,0.3);
+  padding: 6px 10px;
+  font-size: 0.8rem;
+}
+.btn-danger:hover { background: rgba(220,50,50,0.28); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
 
-    .range-wrap { display: flex; align-items: center; gap: 8px; }
-    .range-val {
-      min-width: 36px; text-align: right;
-      font-size: 0.85rem; font-weight: 700; color: var(--warn);
-    }
-    input[type=range] { padding: 0; accent-color: var(--primary); }
+/* =============================================
+   STATUS BAR
+============================================= */
+#status-bar {
+  background: rgba(var(--lottery-color-rgb),0.12);
+  border: 1px solid rgba(var(--lottery-color-rgb),0.3);
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  font-size: 0.88rem;
+  display: none;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+#status-bar.visible { display: flex; }
+.progress-bar-wrap { flex: 1; background: rgba(255,255,255,0.1); border-radius: 99px; height: 6px; overflow: hidden; }
+.progress-bar-fill { height: 100%; background: var(--lottery-color); border-radius: 99px; transition: width 0.3s; }
 
-    .btn {
-      padding: 10px 20px;
-      border: none; border-radius: 8px;
-      font-size: 0.9rem; font-weight: 700;
-      cursor: pointer; transition: opacity .2s, transform .1s;
-    }
-    .btn:active { transform: scale(.97); }
-    .btn:disabled { opacity: .45; cursor: not-allowed; }
-    .btn-primary { background: var(--primary); color: #fff; }
-    .btn-success { background: var(--success); color: #fff; }
-    .btn-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+/* =============================================
+   SKELETON LOADING
+============================================= */
+.skeleton {
+  background: linear-gradient(90deg,
+    rgba(255,255,255,0.06) 25%,
+    rgba(255,255,255,0.12) 50%,
+    rgba(255,255,255,0.06) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+}
+[data-theme="light"] .skeleton {
+  background: linear-gradient(90deg,
+    rgba(0,0,0,0.06) 25%,
+    rgba(0,0,0,0.12) 50%,
+    rgba(0,0,0,0.06) 75%
+  );
+  background-size: 200% 100%;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.skeleton-line { height: 14px; margin-bottom: 10px; border-radius: 99px; }
+.skeleton-line.w60 { width: 60%; }
+.skeleton-line.w80 { width: 80%; }
+.skeleton-line.w40 { width: 40%; }
+.skeleton-ball { width: 42px; height: 42px; border-radius: 50%; display: inline-block; }
+.skeleton-chart { height: 200px; width: 100%; }
 
-    /* ─── Status / Error ─── */
-    .status-bar {
-      max-width: 900px; margin: 0 auto 20px;
-      padding: 10px 16px;
-      border-radius: 8px;
-      font-size: 0.88rem;
-      display: none;
-    }
-    .status-bar.info  { background: #1a2a4a; border: 1px solid var(--primary); color: #88c0ff; display: block; }
-    .status-bar.error { background: #2a1a1a; border: 1px solid var(--danger);  color: #ff9090; display: block; }
-    .status-bar.warn  { background: #2a250a; border: 1px solid var(--warn);   color: #ffe080; display: block; }
+/* =============================================
+   LOTTERY BALLS (Animated)
+============================================= */
+.balls-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 12px 0;
+}
+.ball {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--lottery-color);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.85rem;
+  box-shadow: 0 3px 10px rgba(var(--lottery-color-rgb),0.5), inset 0 -3px 6px rgba(0,0,0,0.2), inset 0 2px 4px rgba(255,255,255,0.3);
+  cursor: default;
+  position: relative;
+  transition: transform 0.2s;
+}
+.ball:hover { transform: scale(1.12) rotate(-5deg); }
+.ball.ball-animated {
+  animation: ballDrop 0.55s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+@keyframes ballDrop {
+  0%   { opacity:0; transform: translateY(-40px) scale(0.5); }
+  70%  { transform: translateY(5px) scale(1.05); }
+  100% { opacity:1; transform: translateY(0) scale(1); }
+}
+.ball-sm {
+  width: 32px;
+  height: 32px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.ball-xs {
+  width: 26px;
+  height: 26px;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+/* Tooltip on history balls */
+.ball[data-tooltip] {
+  position: relative;
+}
+.ball[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.88);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 500;
+  white-space: nowrap;
+  padding: 4px 8px;
+  border-radius: 6px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+.ball[data-tooltip]:hover::after { opacity: 1; }
 
-    /* ─── Spinner ─── */
-    .spinner {
-      display: none; width: 44px; height: 44px;
-      border: 4px solid var(--border);
-      border-top-color: var(--primary);
-      border-radius: 50%;
-      animation: spin .8s linear infinite;
-      margin: 20px auto;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
+/* =============================================
+   TABS
+============================================= */
+.tab-bar {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.tab-btn {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all var(--transition);
+  font-family: inherit;
+}
+.tab-btn.active {
+  color: var(--lottery-color);
+  border-bottom-color: var(--lottery-color);
+}
+.tab-btn:hover:not(.active) { color: var(--text); }
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
 
-    /* ─── Section cards ─── */
-    .output { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+/* =============================================
+   PERIOD FILTER
+============================================= */
+.period-filter {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.period-btn {
+  padding: 5px 12px;
+  border-radius: 99px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  transition: all var(--transition);
+  font-family: inherit;
+}
+.period-btn.active {
+  background: var(--lottery-color);
+  color: #fff;
+  border-color: var(--lottery-color);
+}
 
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px 22px;
-    }
-    .card h2 {
-      font-size: 1rem; font-weight: 700;
-      display: flex; align-items: center; gap: 8px;
-      margin-bottom: 16px; color: var(--text);
-    }
-    .card h2 .badge {
-      font-size: 0.7rem; padding: 2px 8px;
-      border-radius: 20px; background: var(--surface2);
-      color: var(--muted); font-weight: 600;
-    }
+/* =============================================
+   FREQUENCY TABLE
+============================================= */
+.freq-table { width: 100%; border-collapse: collapse; }
+.freq-table th, .freq-table td {
+  padding: 7px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+.freq-table th { color: var(--text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; }
+.freq-table tr:hover td { background: var(--surface-hover); }
+.freq-bar { height: 8px; border-radius: 99px; background: var(--lottery-color); transition: width 0.4s ease; }
+.freq-bar-bg { background: rgba(255,255,255,0.08); border-radius: 99px; overflow: hidden; min-width: 60px; }
+[data-theme="light"] .freq-bar-bg { background: rgba(0,0,0,0.08); }
 
-    /* ─── Summary strip ─── */
-    .summary-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 12px;
-    }
-    .stat-box {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px 14px;
-    }
-    .stat-box .val { font-size: 1.4rem; font-weight: 800; color: var(--warn); }
-    .stat-box .lbl { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+/* =============================================
+   HEATMAP
+============================================= */
+#heatmap-grid {
+  display: grid;
+  gap: 5px;
+  margin-top: 12px;
+}
+.hm-cell {
+  border-radius: 6px;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  cursor: default;
+  transition: transform 0.15s, opacity 0.2s;
+  position: relative;
+}
+.hm-cell:hover { transform: scale(1.15); z-index: 10; }
+.hm-cell[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.9);
+  color: #fff;
+  font-size: 0.68rem;
+  white-space: nowrap;
+  padding: 3px 7px;
+  border-radius: 5px;
+  pointer-events: none;
+  z-index: 100;
+}
 
-    .last-draw {
-      display: flex; flex-wrap: wrap; gap: 8px;
-      margin-top: 12px;
-    }
-    .ball {
-      width: 38px; height: 38px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, var(--primary) 0%, #0a4ab0 100%);
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 800; font-size: 0.82rem; color: #fff;
-      box-shadow: 0 2px 8px #0006;
-    }
+/* =============================================
+   HISTORY TABLE
+============================================= */
+#history-search-wrap { margin-bottom: 12px; }
+#history-table-wrap {
+  max-height: 340px;
+  overflow-y: auto;
+  border-radius: var(--radius-sm);
+}
+#history-table-wrap::-webkit-scrollbar { width: 5px; }
+#history-table-wrap::-webkit-scrollbar-thumb { background: rgba(var(--lottery-color-rgb),0.4); border-radius: 99px; }
+.history-table { width: 100%; border-collapse: collapse; }
+.history-table th, .history-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+  vertical-align: middle;
+}
+.history-table th { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.4px; position: sticky; top: 0; background: var(--bg); z-index: 2; }
+.history-table tr.highlight-row { background: rgba(255,220,0,0.18) !important; }
+.history-table tr:hover td { background: var(--surface-hover); }
 
-    /* ─── Chart ─── */
-    .chart-container { position: relative; width: 100%; height: 260px; }
+/* =============================================
+   GENERATED GAMES
+============================================= */
+.game-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  margin-bottom: 12px;
+  transition: all var(--transition);
+}
+.game-card:hover { border-color: rgba(var(--lottery-color-rgb),0.35); }
+.game-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.game-card-actions { display: flex; gap: 6px; align-items: center; }
+.fav-btn {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: transform 0.2s;
+  padding: 2px;
+}
+.fav-btn:hover { transform: scale(1.3); }
 
-    /* ─── Tables ─── */
-    .table-scroll { overflow-x: auto; }
-    table {
-      width: 100%; border-collapse: collapse;
-      font-size: 0.83rem;
-    }
-    thead th {
-      background: var(--surface2);
-      padding: 8px 12px;
-      text-align: left;
-      font-size: 0.72rem; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.5px;
-      color: var(--muted);
-      position: sticky; top: 0;
-    }
-    tbody tr { border-bottom: 1px solid var(--border); transition: background .15s; }
-    tbody tr:hover { background: var(--surface2); }
-    tbody td { padding: 7px 12px; }
-    .td-num { font-weight: 700; color: var(--warn); }
-    .bar-cell { display: flex; align-items: center; gap: 8px; }
-    .mini-bar { height: 8px; border-radius: 4px; background: var(--primary); opacity: .8; min-width: 2px; }
+/* =============================================
+   CHECKER CARD
+============================================= */
+#checker-result { margin-top: 14px; overflow-x: auto; }
+.checker-table { width: 100%; border-collapse: collapse; }
+.checker-table th, .checker-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+  text-align: center;
+}
+.checker-table th { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.4px; }
+.match-jackpot { color: #ffd700; font-weight: 800; }
+.match-near { color: #4caf50; font-weight: 700; }
+.match-miss { color: #f44; font-weight: 500; }
 
-    /* ─── Probability table ─── */
-    .prob-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 12px;
-    }
-    .prob-row {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 14px;
-    }
-    .prob-row .acertos { font-weight: 800; font-size: 1rem; color: var(--warn); }
-    .prob-row .chance  { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
-    .prob-row .ratio   { font-size: 0.82rem; color: var(--text);  margin-top: 2px; font-weight: 600; }
+/* =============================================
+   PAIRS TABLE
+============================================= */
+.pairs-table { width: 100%; border-collapse: collapse; }
+.pairs-table th, .pairs-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+.pairs-table th { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.4px; }
 
-    /* ─── Generated games ─── */
-    .games-list { display: flex; flex-direction: column; gap: 10px; }
-    .game-item {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 14px;
-      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    }
-    .game-num { font-size: 0.75rem; color: var(--muted); width: 52px; flex-shrink: 0; }
-    .balls-row { display: flex; flex-wrap: wrap; gap: 6px; }
-    .ball-sm {
-      width: 30px; height: 30px;
-      border-radius: 50%;
-      background: var(--surface);
-      border: 2px solid var(--primary);
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 700; font-size: 0.72rem; color: var(--primary);
-    }
-    .ball-hot  { border-color: var(--danger);  color: var(--danger);  background: #1a0808; }
-    .ball-cold { border-color: #5588ff; color: #5588ff; background: #08081a; }
+/* =============================================
+   STATISTICS CARD
+============================================= */
+.stat-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.stat-row:last-child { border-bottom: none; }
+.stat-label { font-size: 0.85rem; color: var(--text-muted); }
+.stat-value { font-size: 0.95rem; font-weight: 700; color: var(--lottery-color); }
 
-    /* ─── History table ─── */
-    .history-wrap { max-height: 320px; overflow-y: auto; }
+/* =============================================
+   PROBABILITIES TABLE
+============================================= */
+.prob-table { width: 100%; border-collapse: collapse; }
+.prob-table th, .prob-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+.prob-table th { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.4px; }
 
-    /* ─── Footer ─── */
-    footer {
-      text-align: center; margin-top: 48px;
-      font-size: 0.75rem; color: var(--muted);
-    }
-    footer a { color: var(--muted); }
+/* =============================================
+   SUMMARY BADGES
+============================================= */
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(130px,1fr)); gap: 12px; }
+.summary-item {
+  background: rgba(var(--lottery-color-rgb),0.1);
+  border: 1px solid rgba(var(--lottery-color-rgb),0.25);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  text-align: center;
+  transition: all var(--transition);
+}
+.summary-item:hover { background: rgba(var(--lottery-color-rgb),0.18); }
+.summary-item .s-value { font-size: 1.4rem; font-weight: 800; color: var(--lottery-color); display: block; }
+.summary-item .s-label { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.4px; }
 
-    /* ─── Tabs ─── */
-    .tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
-    .tab-btn {
-      padding: 6px 14px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: none; color: var(--muted);
-      font-size: 0.8rem; font-weight: 600;
-      cursor: pointer; transition: all .2s;
-    }
-    .tab-btn.active {
-      background: var(--primary); border-color: var(--primary);
-      color: #fff;
-    }
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
+/* =============================================
+   COMPARISON MODE
+============================================= */
+#comparison-panel {
+  display: none;
+  gap: 16px;
+}
+#comparison-panel.visible {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+@media(max-width:768px) {
+  #comparison-panel.visible { grid-template-columns: 1fr; }
+}
+.cmp-panel-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
 
-    /* ─── Progress ─── */
-    .progress-wrap { margin-bottom: 12px; display: none; }
-    .progress-bar {
-      height: 4px; background: var(--border); border-radius: 2px; overflow: hidden;
-    }
-    .progress-fill {
-      height: 100%; background: var(--primary);
-      transition: width .3s;
-      width: 0%;
-    }
-    .progress-label { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
-  </style>
+/* =============================================
+   FAVORITES SECTION
+============================================= */
+#favorites-section { display: none; margin-top: 20px; }
+#favorites-section.visible { display: block; }
+
+/* =============================================
+   SHARE MODAL
+============================================= */
+#share-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+}
+#share-modal.visible { display: flex; }
+#share-modal-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  max-width: 420px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+#share-modal-box h3 { margin-bottom: 14px; font-size: 1rem; }
+.share-links { display: flex; flex-direction: column; gap: 10px; }
+.share-link-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: filter 0.2s;
+}
+.share-link-btn:hover { filter: brightness(1.1); }
+.share-whatsapp { background: #25d366; color: #fff; }
+.share-telegram { background: #229ed9; color: #fff; }
+.share-copy { background: var(--surface); color: var(--text); border: 1px solid var(--border); cursor: pointer; }
+
+/* =============================================
+   CHART CONTAINERS
+============================================= */
+.chart-wrap { position: relative; }
+.chart-wrap canvas { max-height: 300px; }
+
+/* =============================================
+   ANIMATIONS & UTILS
+============================================= */
+.fade-in { animation: fadeIn 0.4s ease both; }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.hidden { display: none !important; }
+hr.divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 99px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.badge-primary { background: rgba(var(--lottery-color-rgb),0.18); color: var(--lottery-color); }
+
+/* =============================================
+   SCROLL CONTAINER CUSTOM
+============================================= */
+.scroll-x { overflow-x: auto; }
+.scroll-x::-webkit-scrollbar { height: 4px; }
+.scroll-x::-webkit-scrollbar-thumb { background: rgba(var(--lottery-color-rgb),0.4); border-radius: 99px; }
+
+/* =============================================
+   RESPONSIVE TWEAKS
+============================================= */
+@media(max-width:480px) {
+  .ball { width: 36px; height: 36px; font-size: 0.78rem; }
+  .btn { padding: 9px 14px; font-size: 0.83rem; }
+  .card { padding: 16px; }
+  #controls-bar { flex-direction: column; }
+}
+</style>
 </head>
 <body>
 
-<header>
-  <h1>🎯 Loteria <span>Lab</span> 2.0</h1>
-  <p>Estatísticas históricas · Frequência · Probabilidades · Gerador de jogos</p>
+<!-- =============================================
+     HEADER
+============================================= -->
+<header id="app-header">
+  <div id="header-controls">
+    <button class="icon-btn" id="compare-toggle-btn" title="Comparar Loterias">⚖️</button>
+    <button class="icon-btn" id="theme-toggle-btn" title="Alternar tema">🌙</button>
+  </div>
+  <div id="header-title">🎰 Loteria Lab 2.0</div>
+  <div id="header-subtitle">Análise estatística avançada de loterias brasileiras</div>
+  <div id="countdown-display">
+    <span class="cd-icon">⏰</span>
+    Próximo sorteio: <span id="countdown-timer">--:--:--</span>
+  </div>
 </header>
 
-<!-- Controls -->
-<div class="controls">
-
-  <div class="ctrl-group">
-    <label>Loteria</label>
-    <select id="sel-jogo">
-      <option value="megasena">Mega-Sena</option>
-      <option value="lotofacil">Lotofácil</option>
-      <option value="quina">Quina</option>
-      <option value="lotomania">Lotomania</option>
-    </select>
-  </div>
-
-  <div class="ctrl-group">
-    <label>Histórico (concursos)</label>
-    <div class="range-wrap">
-      <input type="range" id="sl-historico" min="10" max="200" step="10" value="50" />
-      <span class="range-val" id="lbl-historico">50</span>
+<!-- =============================================
+     SHARE MODAL
+============================================= -->
+<div id="share-modal">
+  <div id="share-modal-box">
+    <h3>📤 Compartilhar Jogo</h3>
+    <div class="share-links">
+      <a id="share-whatsapp" class="share-link-btn share-whatsapp" target="_blank">
+        <span>💬</span> Compartilhar no WhatsApp
+      </a>
+      <a id="share-telegram" class="share-link-btn share-telegram" target="_blank">
+        <span>✈️</span> Compartilhar no Telegram
+      </a>
+      <button id="share-copy" class="share-link-btn share-copy">
+        <span>📋</span> Copiar para Área de Transferência
+      </button>
+    </div>
+    <div style="margin-top:16px;text-align:right;">
+      <button class="btn btn-secondary" id="share-modal-close">Fechar</button>
     </div>
   </div>
-
-  <div class="ctrl-group">
-    <label>Jogos a gerar</label>
-    <div class="range-wrap">
-      <input type="range" id="sl-jogos" min="1" max="30" step="1" value="8" />
-      <span class="range-val" id="lbl-jogos">8</span>
-    </div>
-  </div>
-
-  <div class="ctrl-group">
-    <label>Método de geração</label>
-    <select id="sel-metodo">
-      <option value="aleatorio">Aleatório puro</option>
-      <option value="frequencia">Frequência histórica</option>
-    </select>
-  </div>
-
-  <div class="ctrl-group btn-row">
-    <button class="btn btn-primary" id="btn-analisar" onclick="iniciar()">🔍 Analisar</button>
-    <button class="btn btn-success" id="btn-gerar" onclick="gerarJogos()" disabled>🎲 Gerar jogos</button>
-  </div>
-
 </div>
 
-<!-- Status -->
-<div class="status-bar" id="status"></div>
+<!-- =============================================
+     MAIN CONTAINER
+============================================= -->
+<div id="main-container">
 
-<!-- Spinner -->
-<div class="spinner" id="spinner"></div>
-
-<!-- Progress -->
-<div class="output" id="output" style="display:none">
-
-  <div class="progress-wrap" id="prog-wrap">
-    <div class="progress-bar"><div class="progress-fill" id="prog-fill"></div></div>
-    <div class="progress-label" id="prog-label"></div>
-  </div>
-
-  <!-- Summary -->
-  <div class="card" id="card-summary">
-    <h2>📊 Resumo do concurso <span class="badge" id="badge-jogo">—</span></h2>
-    <div class="summary-grid">
-      <div class="stat-box"><div class="val" id="stat-total">—</div><div class="lbl">Concursos analisados</div></div>
-      <div class="stat-box"><div class="val" id="stat-ultimo">—</div><div class="lbl">Último concurso</div></div>
-      <div class="stat-box"><div class="val" id="stat-data">—</div><div class="lbl">Data do último sorteio</div></div>
-      <div class="stat-box"><div class="val" id="stat-combinacoes">—</div><div class="lbl">Combinações possíveis</div></div>
-    </div>
-    <p style="font-size:.78rem;color:var(--muted);margin-top:10px">Últimas dezenas sorteadas:</p>
-    <div class="last-draw" id="last-draw"></div>
-  </div>
-
-  <!-- Chart + Frequency table (tabbed) -->
-  <div class="card">
-    <h2>📈 Frequência histórica</h2>
-    <div class="tabs">
-      <button class="tab-btn active" onclick="switchTab('chart','freq')">Gráfico</button>
-      <button class="tab-btn" onclick="switchTab('table-hot','freq')">🔥 Mais sorteadas</button>
-      <button class="tab-btn" onclick="switchTab('table-cold','freq')">❄️ Menos sorteadas</button>
-      <button class="tab-btn" onclick="switchTab('table-all','freq')">Todas</button>
-    </div>
-
-    <div id="freq-chart" class="tab-panel active">
-      <div class="chart-container"><canvas id="chart-freq"></canvas></div>
-    </div>
-
-    <div id="freq-table-hot" class="tab-panel">
-      <div class="table-scroll"><table id="tbl-hot"><thead><tr><th>#</th><th>Dezena</th><th>Ocorrências</th><th>Frequência (%)</th><th>Visualização</th></tr></thead><tbody></tbody></table></div>
-    </div>
-
-    <div id="freq-table-cold" class="tab-panel">
-      <div class="table-scroll"><table id="tbl-cold"><thead><tr><th>#</th><th>Dezena</th><th>Ocorrências</th><th>Frequência (%)</th><th>Visualização</th></tr></thead><tbody></tbody></table></div>
-    </div>
-
-    <div id="freq-table-all" class="tab-panel">
-      <div class="table-scroll"><table id="tbl-all"><thead><tr><th>Dezena</th><th>Ocorrências</th><th>Frequência (%)</th><th>Visualização</th></tr></thead><tbody></tbody></table></div>
+  <!-- CONTROLS BAR -->
+  <div class="card" style="margin-bottom:16px;">
+    <div id="controls-bar">
+      <div class="form-group">
+        <label for="jogo-select">Loteria</label>
+        <select id="jogo-select">
+          <option value="megasena">Mega-Sena</option>
+          <option value="lotofacil">Lotofácil</option>
+          <option value="quina">Quina</option>
+          <option value="lotomania">Lotomania</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="qtd-jogos">Qtd. Jogos</label>
+        <input type="number" id="qtd-jogos" min="1" max="50" value="5" style="width:90px;">
+      </div>
+      <div class="form-group" style="justify-content:flex-end;">
+        <label>&nbsp;</label>
+        <button class="btn btn-primary" id="btn-analisar">🔍 Analisar</button>
+      </div>
     </div>
   </div>
 
-  <!-- Probability -->
-  <div class="card">
-    <h2>🎲 Tabela de probabilidades</h2>
-    <div class="prob-grid" id="prob-grid"></div>
-    <p style="font-size:.72rem;color:var(--muted);margin-top:14px">
-      ⚠️ Probabilidades são teóricas, calculadas combinatoriamente. Frequência passada não garante resultados futuros.
-    </p>
+  <!-- STATUS BAR -->
+  <div id="status-bar">
+    <span id="status-text">Carregando...</span>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" id="progress-fill" style="width:0%"></div>
+    </div>
+    <span id="status-pct">0%</span>
   </div>
 
-  <!-- Games -->
-  <div class="card" id="card-jogos" style="display:none">
-    <h2>🎲 Jogos gerados <span class="badge" id="badge-metodo">—</span></h2>
-    <div class="games-list" id="games-list"></div>
-    <p style="font-size:.72rem;color:var(--muted);margin-top:14px">
-      🔴 dezena quente (top 25%) · 🔵 dezena fria (bottom 25%) · ⚪ neutra
-    </p>
+  <!-- SKELETON LOADING AREA -->
+  <div id="skeleton-area" class="hidden">
+    <div class="grid-2" style="margin-bottom:16px;">
+      <div class="card"><div class="skeleton skeleton-line w60"></div><div class="skeleton skeleton-line w80"></div><div class="skeleton skeleton-line w40"></div></div>
+      <div class="card"><div class="skeleton skeleton-line w80"></div><div class="skeleton skeleton-line w60"></div><div class="skeleton skeleton-line w40"></div></div>
+    </div>
+    <div class="card" style="margin-bottom:16px;"><div class="skeleton skeleton-chart"></div></div>
+    <div class="card"><div class="skeleton skeleton-line w80"></div><div class="skeleton skeleton-chart"></div></div>
   </div>
 
-  <!-- History -->
-  <div class="card">
-    <h2>📋 Histórico de concursos <span class="badge" id="badge-hist">—</span></h2>
-    <div class="history-wrap table-scroll">
-      <table id="tbl-history">
-        <thead><tr><th>Concurso</th><th>Data</th><th>Dezenas sorteadas</th></tr></thead>
-        <tbody></tbody>
+  <!-- MAIN CONTENT (hidden until data loaded) -->
+  <div id="main-content" class="hidden">
+
+    <!-- COMPARISON MODE -->
+    <div id="comparison-panel" style="margin-bottom:16px;">
+      <div class="card" id="cmp-panel-a">
+        <div class="cmp-panel-title">Loteria A</div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <select id="cmp-select-a">
+            <option value="megasena">Mega-Sena</option>
+            <option value="lotofacil">Lotofácil</option>
+            <option value="quina">Quina</option>
+            <option value="lotomania">Lotomania</option>
+          </select>
+        </div>
+        <button class="btn btn-secondary" id="btn-cmp-a" style="margin-bottom:12px;font-size:0.82rem;">Carregar</button>
+        <div class="chart-wrap"><canvas id="cmp-chart-a"></canvas></div>
+      </div>
+      <div class="card" id="cmp-panel-b">
+        <div class="cmp-panel-title">Loteria B</div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <select id="cmp-select-b">
+            <option value="megasena">Mega-Sena</option>
+            <option value="lotofacil" selected>Lotofácil</option>
+            <option value="quina">Quina</option>
+            <option value="lotomania">Lotomania</option>
+          </select>
+        </div>
+        <button class="btn btn-secondary" id="btn-cmp-b" style="margin-bottom:12px;font-size:0.82rem;">Carregar</button>
+        <div class="chart-wrap"><canvas id="cmp-chart-b"></canvas></div>
+      </div>
+    </div>
+
+    <!-- SUMMARY + LAST DRAW -->
+    <div class="grid-2" style="margin-bottom:16px;">
+      <div class="card fade-in">
+        <div class="section-title">📋 Resumo</div>
+        <div id="summary-grid-content"></div>
+      </div>
+      <div class="card fade-in">
+        <div class="section-title">🎱 Último Sorteio</div>
+        <div id="last-draw-info" style="font-size:0.82rem;color:var(--text-muted);margin-bottom:8px;"></div>
+        <div id="last-draw-balls" class="balls-container"></div>
+      </div>
+    </div>
+
+    <!-- STATISTICS CARD -->
+    <div class="card fade-in" style="margin-bottom:16px;">
+      <div class="section-title">📊 Estatísticas Gerais</div>
+      <div id="stats-content"></div>
+    </div>
+
+    <!-- CHARTS CARD -->
+    <div class="card fade-in" style="margin-bottom:16px;">
+      <div class="section-title">📈 Gráficos</div>
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="tab-bar-chart">Frequência</button>
+        <button class="tab-btn" data-tab="tab-line-chart">Evolução Top-5</button>
+        <button class="tab-btn" data-tab="tab-radar-chart">Radar (Jogo)</button>
+      </div>
+
+      <div id="tab-bar-chart" class="tab-pane active">
+        <div class="period-filter">
+          <button class="period-btn active" data-period="20">Últimos 20</button>
+          <button class="period-btn" data-period="50">Últimos 50</button>
+          <button class="period-btn" data-period="0">Todos</button>
+        </div>
+        <div class="chart-wrap"><canvas id="bar-chart"></canvas></div>
+      </div>
+
+      <div id="tab-line-chart" class="tab-pane">
+        <div class="chart-wrap"><canvas id="line-chart"></canvas></div>
+      </div>
+
+      <div id="tab-radar-chart" class="tab-pane">
+        <div id="radar-placeholder" style="text-align:center;color:var(--text-muted);padding:40px 0;font-size:0.9rem;">
+          Gere jogos para ver o radar comparativo
+        </div>
+        <div class="chart-wrap" id="radar-wrap" style="display:none;"><canvas id="radar-chart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- HEATMAP CARD -->
+    <div class="card fade-in" style="margin-bottom:16px;">
+      <div class="section-title">🌡️ Mapa de Calor</div>
+      <div id="heatmap-grid"></div>
+    </div>
+
+    <!-- FREQUENCY TABLES -->
+    <div class="grid-2" style="margin-bottom:16px;">
+      <div class="card fade-in">
+        <div class="section-title">🔥 Mais Frequentes</div>
+        <table class="freq-table" id="hot-table">
+          <thead><tr><th>#</th><th>Dezena</th><th>Freq.</th><th>%</th><th>Barra</th></tr></thead>
+          <tbody id="hot-tbody"></tbody>
+        </table>
+      </div>
+      <div class="card fade-in">
+        <div class="section-title">❄️ Menos Frequentes</div>
+        <table class="freq-table" id="cold-table">
+          <thead><tr><th>#</th><th>Dezena</th><th>Freq.</th><th>%</th><th>Barra</th></tr></thead>
+          <tbody id="cold-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ALL NUMBERS TABLE -->
+    <div class="card fade-in" style="margin-bottom:16px;">
+      <div class="section-title">🔢 Todas as Dezenas</div>
+      <div class="scroll-x">
+        <table class="freq-table" id="all-table">
+          <thead><tr><th>#</th><th>Dezena</th><th>Freq.</th><th>%</th><th>Barra</th></tr></thead>
+          <tbody id="all-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PAIRS TABLE -->
+    <div class="card fade-in" style="margin-bottom:16px;">
+      <div class="section-title">🔗 Pares Mais Frequentes (Top 20)</div>
+      <div class="scroll-x">
+        <table class="pairs-table" id="pairs-table">
+          <thead><tr><th>Par</th><th>Ocorrências</th><th>Barra</th></tr></thead>
+          <tbody id="pairs-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PROBABILITIES -->
+    <div class="card fade-in" style="margin-bottom:16px;">
+      <div class="section-title">🎯 Probabilidades de Acerto</div>
+      <table class="prob-table">
+        <thead><tr><th>Faixa</th><th>Chance (1 em)</th><th>% Probabilidade</th></tr></thead>
+        <tbody id="prob-tbody"></tbody>
       </table>
     </div>
-  </div>
 
-</div>
+    <!-- HISTORY CARD -->
+    <div class="card fade-in" style="margin-bottom:16px;">
+      <div class="section-title">📜 Histórico de Sorteios</div>
+      <div id="history-search-wrap">
+        <input type="text" id="history-search" placeholder="🔍 Buscar dezena... (ex: 23)" style="width:100%;max-width:280px;">
+      </div>
+      <div id="history-table-wrap">
+        <table class="history-table">
+          <thead><tr><th>Concurso</th><th>Data</th><th>Dezenas</th></tr></thead>
+          <tbody id="history-tbody"></tbody>
+        </table>
+      </div>
+    </div>
 
-<footer>
-  <p>Dados: <a href="https://loterias.caixa.gov.br" target="_blank">Caixa Econômica Federal</a> &mdash; Loteria Lab 2.0 &copy; 2025</p>
-  <p style="margin-top:6px">⚠️ Apenas fins educacionais. Jogar pode causar dependência. Proibido para menores de 18 anos.</p>
-</footer>
+    <!-- CHECKER CARD -->
+    <div class="card fade-in" style="margin-bottom:16px;">
+      <div class="section-title">✅ Conferidor de Jogos</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+        <div class="form-group" style="flex:1;min-width:200px;">
+          <label>Seus números (vírgula ou espaço)</label>
+          <input type="text" id="checker-input" placeholder="ex: 5, 12, 23, 37, 42, 60">
+        </div>
+        <button class="btn btn-primary" id="btn-conferir">🎯 Conferir</button>
+      </div>
+      <div id="checker-result"></div>
+    </div>
+
+    <!-- GENERATE GAMES CARD -->
+    <div class="card fade-in" style="margin-bottom:16px;">
+      <div class="section-title">🎲 Gerar Jogos</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">
+        <button class="btn btn-primary" id="btn-gerar">🎲 Gerar Jogos</button>
+        <button class="btn btn-secondary" id="btn-export-csv" style="display:none;">📥 Exportar CSV</button>
+      </div>
+      <div id="generated-games-list"></div>
+    </div>
+
+    <!-- FAVORITES SECTION -->
+    <div id="favorites-section" class="card fade-in">
+      <div class="section-title">⭐ Jogos Favoritos</div>
+      <div id="favorites-list"></div>
+    </div>
+
+  </div><!-- /#main-content -->
+
+</div><!-- /#main-container -->
 
 <script>
-/* ═══════════════════════════════════════════════════════════════
-   CONFIGURAÇÃO DOS JOGOS
-   ═══════════════════════════════════════════════════════════════ */
+'use strict';
+/* =============================================
+   CONFIG
+============================================= */
 const JOGOS = {
-  megasena:  { nome: "Mega-Sena",  universo: 60,  dezenas: 6,  inicio: 1,  premios: [4,5,6] },
-  lotofacil: { nome: "Lotofácil",  universo: 25,  dezenas: 15, inicio: 1,  premios: [11,12,13,14,15] },
-  quina:     { nome: "Quina",      universo: 80,  dezenas: 5,  inicio: 1,  premios: [2,3,4,5] },
-  lotomania: { nome: "Lotomania",  universo: 100, dezenas: 20, inicio: 0,  premios: [15,16,17,18,19,20] },
+  megasena:  { nome:'Mega-Sena',  universo:60,  dezenas:6,  inicio:1, cor:'#00a650', corBola:'#00a650', premios:[4,5,6],  diasSorteio:[3,6], horario:'20:00', labelPremio:{4:'Quadra',5:'Quina',6:'Sena (Jackpot)'} },
+  lotofacil: { nome:'Lotofácil',  universo:25,  dezenas:15, inicio:1, cor:'#cc00a0', corBola:'#cc00a0', premios:[11,12,13,14,15], diasSorteio:[1,2,3,4,5,6], horario:'20:00', labelPremio:{11:'11 pts',12:'12 pts',13:'13 pts',14:'14 pts',15:'15 pts (Jackpot)'} },
+  quina:     { nome:'Quina',      universo:80,  dezenas:5,  inicio:1, cor:'#9b0fbb', corBola:'#9b0fbb', premios:[2,3,4,5], diasSorteio:[1,2,3,4,5,6], horario:'20:00', labelPremio:{2:'Duque',3:'Terno',4:'Quadra',5:'Quina (Jackpot)'} },
+  lotomania: { nome:'Lotomania',  universo:100, dezenas:20, inicio:0, cor:'#f47920', corBola:'#f47920', premios:[15,16,17,18,19,20], diasSorteio:[1,3], horario:'20:00', labelPremio:{15:'15 pts',16:'16 pts',17:'17 pts',18:'18 pts',19:'19 pts',20:'20 pts (Jackpot)'} },
+};
+const BASE = 'https://servicebus2.caixa.gov.br/portaldeloterias/api';
+const HEX = c => parseInt(c.slice(1),16);
+const hexToRgb = hex => {
+  const v = HEX(hex);
+  return `${(v>>16)&255}, ${(v>>8)&255}, ${v&255}`;
 };
 
-const BASE = "https://servicebus2.caixa.gov.br/portaldeloterias/api";
-
-/* ═══════════════════════════════════════════════════════════════
-   ESTADO
-   ═══════════════════════════════════════════════════════════════ */
-let estadoAtual = {
-  historico: [],
-  ranking: [],
-  jogo: null,
+/* =============================================
+   STATE
+============================================= */
+const STATE = {
+  jogoKey: 'megasena',
+  historia: [],
+  frequencia: {},
+  generatedGames: [],
+  activePeriod: 20,
+  favorites: JSON.parse(localStorage.getItem('ll2_favorites') || '[]'),
+  shareGameText: '',
+  countdownInterval: null,
+  chartBar: null,
+  chartLine: null,
+  chartRadar: null,
+  chartCmpA: null,
+  chartCmpB: null,
 };
 
-let freqChart = null;
-
-/* ═══════════════════════════════════════════════════════════════
+/* =============================================
    UI HELPERS
-   ═══════════════════════════════════════════════════════════════ */
-function setStatus(msg, tipo = "info") {
-  const el = document.getElementById("status");
-  el.className = `status-bar ${tipo}`;
-  el.textContent = msg;
+============================================= */
+function jogo() { return JOGOS[STATE.jogoKey]; }
+
+function setLotteryColor(key) {
+  const j = JOGOS[key];
+  document.documentElement.style.setProperty('--lottery-color', j.cor);
+  document.documentElement.style.setProperty('--lottery-color-rgb', hexToRgb(j.cor));
 }
 
-function clearStatus() {
-  const el = document.getElementById("status");
-  el.className = "status-bar";
-  el.textContent = "";
-}
-
-function setSpinner(on) {
-  document.getElementById("spinner").style.display = on ? "block" : "none";
-}
-
-function setProgress(pct, label) {
-  const wrap = document.getElementById("prog-wrap");
-  wrap.style.display = pct < 100 ? "block" : "none";
-  document.getElementById("prog-fill").style.width = pct + "%";
-  document.getElementById("prog-label").textContent = label || "";
-}
-
-function nf(n) {
-  return n.toLocaleString("pt-BR");
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   RANGE INPUTS
-   ═══════════════════════════════════════════════════════════════ */
-document.getElementById("sl-historico").addEventListener("input", e => {
-  document.getElementById("lbl-historico").textContent = e.target.value;
-});
-document.getElementById("sl-jogos").addEventListener("input", e => {
-  document.getElementById("lbl-jogos").textContent = e.target.value;
-});
-
-/* ═══════════════════════════════════════════════════════════════
-   TABS
-   ═══════════════════════════════════════════════════════════════ */
-function switchTab(panelId, group) {
-  const tabs   = document.querySelectorAll(`.tabs .tab-btn`);
-  const panels = document.querySelectorAll(`.tab-panel`);
-  panels.forEach(p => p.classList.remove("active"));
-  tabs.forEach(t => t.classList.remove("active"));
-  const panel = document.getElementById(`freq-${panelId}`);
-  if (panel) {
-    panel.classList.add("active");
-    event.currentTarget.classList.add("active");
+function showStatus(msg, pct = null) {
+  const bar = document.getElementById('status-bar');
+  bar.classList.add('visible');
+  document.getElementById('status-text').textContent = msg;
+  if (pct !== null) {
+    document.getElementById('progress-fill').style.width = pct + '%';
+    document.getElementById('status-pct').textContent = pct + '%';
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   FETCH COM RETRY + TIMEOUT
-   ═══════════════════════════════════════════════════════════════ */
-async function fetchJSON(url, tentativas = 2) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), 20000);
-  let ultima;
-  for (let t = 0; t < tentativas; t++) {
-    try {
-      const r = await fetch(url, {
-        signal: controller.signal,
-        headers: {
-          "Accept": "application/json, text/plain, */*",
-          "Origin": "https://loterias.caixa.gov.br",
-        }
-      });
-      clearTimeout(id);
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return await r.json();
-    } catch (err) {
-      ultima = err;
-      if (t < tentativas - 1) await new Promise(r => setTimeout(r, 800));
+function hideStatus() {
+  document.getElementById('status-bar').classList.remove('visible');
+}
+
+function showSkeleton() {
+  document.getElementById('skeleton-area').classList.remove('hidden');
+  document.getElementById('main-content').classList.add('hidden');
+}
+
+function hideSkeleton() {
+  document.getElementById('skeleton-area').classList.add('hidden');
+}
+
+function showMainContent() {
+  document.getElementById('main-content').classList.remove('hidden');
+}
+
+// Theme toggle
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('theme-toggle-btn').textContent = theme === 'dark' ? '🌙' : '☀️';
+  localStorage.setItem('ll2_theme', theme);
+}
+
+// Countdown timer to next draw
+function startCountdown() {
+  if (STATE.countdownInterval) clearInterval(STATE.countdownInterval);
+  function update() {
+    const j = jogo();
+    const now = new Date();
+    const [hh, mm] = j.horario.split(':').map(Number);
+    let found = null;
+    for (let d = 0; d <= 7; d++) {
+      const candidate = new Date(now);
+      candidate.setDate(now.getDate() + d);
+      candidate.setHours(hh, mm, 0, 0);
+      if (candidate <= now) continue;
+      const dow = candidate.getDay(); // 0=Sun,1=Mon,...,6=Sat
+      if (j.diasSorteio.includes(dow)) { found = candidate; break; }
     }
+    if (!found) { document.getElementById('countdown-timer').textContent = '--:--:--'; return; }
+    const diff = Math.floor((found - now) / 1000);
+    const hrs = String(Math.floor(diff/3600)).padStart(2,'0');
+    const mins = String(Math.floor((diff%3600)/60)).padStart(2,'0');
+    const secs = String(diff%60).padStart(2,'0');
+    document.getElementById('countdown-timer').textContent = `${hrs}:${mins}:${secs}`;
   }
-  throw ultima;
+  update();
+  STATE.countdownInterval = setInterval(update, 1000);
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   OBTER HISTÓRICO (com progresso)
-   ═══════════════════════════════════════════════════════════════ */
-async function obterHistorico(slug, quantidade) {
-  setStatus("Conectando à API da Caixa…", "info");
-  const ultimo = await fetchJSON(`${BASE}/${slug}`);
-  const numeroAtual = parseInt(ultimo.numero, 10);
-
-  const resultados = [];
-  const ini = Math.max(1, numeroAtual - quantidade + 1);
-  const total = numeroAtual - ini + 1;
-  let ok = 0, falhas = 0;
-
-  // concurso mais recente já temos
-  const dezUlt = ultimo.listaDezenas;
-  if (dezUlt && dezUlt.length) {
-    resultados.push({
-      Concurso: parseInt(ultimo.numero, 10),
-      Data: ultimo.dataApuracao || "",
-      Dezenas: dezUlt.map(Number).sort((a, b) => a - b),
-    });
-    ok++;
-  }
-
-  // buscar os demais em paralelo (lotes de 8)
-  const nums = [];
-  for (let n = numeroAtual - 1; n >= ini; n--) nums.push(n);
-
-  const LOTE = 8;
-  for (let i = 0; i < nums.length; i += LOTE) {
-    const lote = nums.slice(i, i + LOTE);
-    const promessas = lote.map(n =>
-      fetchJSON(`${BASE}/${slug}/${n}`)
-        .then(item => {
-          const dez = item.listaDezenas;
-          if (dez && dez.length) {
-            resultados.push({
-              Concurso: parseInt(item.numero, 10),
-              Data: item.dataApuracao || "",
-              Dezenas: dez.map(Number).sort((a, b) => a - b),
-            });
-          }
-          ok++;
-        })
-        .catch(() => { falhas++; })
-    );
-    await Promise.all(promessas);
-
-    const pct = Math.round((ok + falhas) / total * 100);
-    setProgress(pct, `Carregando concursos… ${ok + falhas}/${total}`);
-    setStatus(`Carregando ${ok + falhas} de ${total} concursos…`, "info");
-  }
-
-  if (!resultados.length)
-    throw new Error("Nenhum resultado obtido. A API pode estar bloqueando o acesso.");
-
-  setProgress(100, "");
-  return resultados.sort((a, b) => a.Concurso - b.Concurso);
+/* =============================================
+   API
+============================================= */
+async function fetchJSON(url) {
+  const res = await fetch(url, { headers:{ Accept:'application/json' } });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   COMBINATÓRIA
-   ═══════════════════════════════════════════════════════════════ */
-function comb(n, k) {
-  if (k > n) return 0;
-  if (k === 0 || k === n) return 1;
-  let r = 1;
-  for (let i = 0; i < k; i++) {
-    r = r * (n - i) / (i + 1);
-  }
-  return Math.round(r);
-}
-
-/* Probabilidade de acertar exatamente `acertos` em um jogo simples */
-function probAcertar(universo, dezJogo, acertos, dezSorteadas) {
-  // C(dezSorteadas, acertos) * C(universo - dezSorteadas, dezJogo - acertos) / C(universo, dezJogo)
-  const favoraveis = comb(dezSorteadas, acertos) * comb(universo - dezSorteadas, dezJogo - acertos);
-  const total = comb(universo, dezJogo);
-  return favoraveis / total;
-}
-
-function formatarChance(prob) {
-  if (prob <= 0) return "Impossível";
-  const razao = Math.round(1 / prob);
-  return `1 em ${nf(razao)}`;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   ANALISAR – PONTO DE ENTRADA PRINCIPAL
-   ═══════════════════════════════════════════════════════════════ */
-async function iniciar() {
-  const slug     = document.getElementById("sel-jogo").value;
-  const qtd      = parseInt(document.getElementById("sl-historico").value, 10);
-  const regra    = JOGOS[slug];
-
-  document.getElementById("btn-analisar").disabled = true;
-  document.getElementById("btn-gerar").disabled    = true;
-  document.getElementById("output").style.display  = "none";
-  setSpinner(true);
-  clearStatus();
-
+async function obterHistorico(jogoKey) {
+  const j = JOGOS[jogoKey];
+  // Get latest concurso number first
+  showStatus('Obtendo último concurso...', 5);
+  let ultimo;
   try {
-    const historico = await obterHistorico(slug, qtd);
-    estadoAtual.historico = historico;
-    estadoAtual.jogo = regra;
-    estadoAtual.slug = slug;
-
-    // Contagem
-    const contador = {};
-    for (let n = regra.inicio; n <= regra.universo; n++) contador[n] = 0;
-    for (const c of historico) for (const d of c.Dezenas) contador[d] = (contador[d] || 0) + 1;
-
-    const totalConcursos = historico.length;
-
-    const ranking = Object.entries(contador).map(([dezena, occ]) => ({
-      dezena: parseInt(dezena, 10),
-      ocorrencias: occ,
-      freq: totalConcursos ? (occ / totalConcursos * 100) : 0,
-    })).sort((a, b) => a.dezena - b.dezena);
-
-    estadoAtual.ranking = ranking;
-
-    // Renderizar seções
-    renderSummary(historico, regra, slug, totalConcursos);
-    renderChart(ranking);
-    renderTables(ranking, totalConcursos);
-    renderProbabilidades(regra, slug);
-    renderHistorico(historico);
-
-    document.getElementById("output").style.display = "flex";
-    document.getElementById("btn-gerar").disabled = false;
-    clearStatus();
-    setStatus(`✅ ${totalConcursos} concursos carregados com sucesso.`, "info");
-
-  } catch (err) {
-    setStatus(`❌ Erro: ${err.message}. Verifique sua conexão e tente novamente.`, "error");
-  } finally {
-    setSpinner(false);
-    document.getElementById("btn-analisar").disabled = false;
+    const latest = await fetchJSON(`${BASE}/${jogoKey}`);
+    ultimo = latest.numero;
+  } catch(e) {
+    throw new Error('Falha ao obter último concurso: ' + e.message);
   }
-}
 
-/* ═══════════════════════════════════════════════════════════════
-   SUMMARY
-   ═══════════════════════════════════════════════════════════════ */
-function renderSummary(historico, regra, slug, totalConcursos) {
-  const ultimo = historico[historico.length - 1];
-  const nomeJogo = regra.nome;
-  const combinacoes = comb(regra.universo, regra.dezenas);
+  const BATCH = 20;
+  const MAX = Math.min(ultimo, 200); // limit to last 200 for performance
+  const start = Math.max(1, ultimo - MAX + 1);
+  const nums = [];
+  for (let i = start; i <= ultimo; i++) nums.push(i);
 
-  document.getElementById("badge-jogo").textContent      = nomeJogo;
-  document.getElementById("stat-total").textContent      = totalConcursos;
-  document.getElementById("stat-ultimo").textContent     = `#${nf(ultimo.Concurso)}`;
-  document.getElementById("stat-data").textContent       = ultimo.Data || "—";
-  document.getElementById("stat-combinacoes").textContent = abreviar(combinacoes);
-
-  const lastDraw = document.getElementById("last-draw");
-  lastDraw.innerHTML = "";
-  for (const d of ultimo.Dezenas) {
-    const ball = document.createElement("div");
-    ball.className = "ball";
-    ball.textContent = String(d).padStart(2, "0");
-    lastDraw.appendChild(ball);
+  const results = [];
+  for (let i = 0; i < nums.length; i += BATCH) {
+    const batch = nums.slice(i, i + BATCH);
+    const pct = Math.round(((i + batch.length) / nums.length) * 90) + 5;
+    showStatus(`Carregando sorteios ${batch[0]}–${batch[batch.length-1]} de ${ultimo}…`, pct);
+    const fetches = batch.map(n => fetchJSON(`${BASE}/${jogoKey}/${n}`).catch(() => null));
+    const data = await Promise.all(fetches);
+    data.forEach(d => { if (d) results.push(d); });
   }
+  showStatus('Processando dados...', 98);
+  return results;
 }
 
-function abreviar(n) {
-  if (n >= 1e12) return (n / 1e12).toFixed(1) + " tri";
-  if (n >= 1e9)  return (n / 1e9).toFixed(1) + " bi";
-  if (n >= 1e6)  return (n / 1e6).toFixed(1) + " mi";
-  return nf(n);
+/* =============================================
+   MATH
+============================================= */
+function comb(n, k) {
+  if (k > n) return 0n;
+  if (k === 0 || k === n) return 1n;
+  k = Math.min(k, n - k);
+  let result = 1n;
+  for (let i = 0; i < k; i++) result = result * BigInt(n - i) / BigInt(i + 1);
+  return result;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   CHART
-   ═══════════════════════════════════════════════════════════════ */
-function renderChart(ranking) {
-  const maxOcc = Math.max(...ranking.map(r => r.ocorrencias));
-  const labels = ranking.map(r => String(r.dezena).padStart(2, "0"));
-  const data   = ranking.map(r => r.ocorrencias);
-  const cores  = ranking.map(r => {
-    const ratio = r.ocorrencias / maxOcc;
-    if (ratio >= 0.75) return "rgba(234,67,53,0.85)";
-    if (ratio <= 0.25) return "rgba(85,136,255,0.85)";
-    return "rgba(26,115,232,0.7)";
+function probAcertar(universo, dezenas, acertos) {
+  const hits = comb(dezenas, acertos);
+  const misses = comb(universo - dezenas, dezenas - acertos);
+  const total = comb(universo, dezenas);
+  if (total === 0n) return 0;
+  return Number((hits * misses * 1000000n) / total) / 1000000;
+}
+
+function formatarChance(p) {
+  if (p <= 0) return 'Impossível';
+  const x = Math.round(1 / p);
+  return x.toLocaleString('pt-BR');
+}
+
+function buildFrequencia(historia, jogoKey) {
+  const j = JOGOS[jogoKey];
+  const freq = {};
+  for (let i = j.inicio; i <= j.universo; i++) freq[i] = 0;
+  historia.forEach(c => {
+    const dezs = getDezenas(c);
+    dezs.forEach(d => { if (freq[d] !== undefined) freq[d]++; });
   });
+  return freq;
+}
 
-  const ctx = document.getElementById("chart-freq").getContext("2d");
-  if (freqChart) freqChart.destroy();
+function getDezenas(concurso) {
+  // API returns different fields depending on game
+  return concurso.dezenasSorteadasOrdemSorteio
+    || concurso.listaDezenas
+    || concurso.dezenas
+    || [];
+}
 
-  freqChart = new Chart(ctx, {
-    type: "bar",
+function buildFrequenciaSlice(historia, jogoKey, period) {
+  const slice = period === 0 ? historia : historia.slice(-period);
+  return buildFrequencia(slice, jogoKey);
+}
+
+/* =============================================
+   RENDER SUMMARY
+============================================= */
+function renderSummary() {
+  const j = jogo();
+  const h = STATE.historia;
+  const last = h[h.length - 1];
+  const dezs = getDezenas(last);
+  const sum = dezs.map(Number).reduce((a,b) => a+b, 0);
+
+  // Summary grid
+  const grid = document.getElementById('summary-grid-content');
+  grid.innerHTML = `
+    <div class="summary-grid">
+      <div class="summary-item"><span class="s-value">${h.length}</span><span class="s-label">Sorteios</span></div>
+      <div class="summary-item"><span class="s-value">${j.universo}</span><span class="s-label">Universo</span></div>
+      <div class="summary-item"><span class="s-value">${j.dezenas}</span><span class="s-label">Dezenas/Jogo</span></div>
+      <div class="summary-item"><span class="s-value">${last.numero||'?'}</span><span class="s-label">Último Concurso</span></div>
+      <div class="summary-item"><span class="s-value">${sum}</span><span class="s-label">Soma Último</span></div>
+      <div class="summary-item"><span class="s-value">${dezs.length ? dezs.filter(d=>Number(d)%2===0).length : 0}</span><span class="s-label">Pares Último</span></div>
+    </div>`;
+
+  // Last draw balls
+  const lastDate = last.dataApuracao || last.data || '';
+  document.getElementById('last-draw-info').textContent = `Concurso ${last.numero||''} — ${lastDate}`;
+  const ballsWrap = document.getElementById('last-draw-balls');
+  ballsWrap.innerHTML = '';
+  const sorted = [...dezs].sort((a,b) => Number(a)-Number(b));
+  sorted.forEach((d, i) => {
+    const el = document.createElement('div');
+    el.className = 'ball ball-animated';
+    el.style.animationDelay = `${i * 0.08}s`;
+    el.textContent = String(d).padStart(2,'0');
+    const cnt = STATE.frequencia[Number(d)] || 0;
+    el.setAttribute('data-tooltip', `Dezena ${d} — ${cnt}x no histórico`);
+    ballsWrap.appendChild(el);
+  });
+}
+
+/* =============================================
+   RENDER STATISTICS
+============================================= */
+function renderStatistics() {
+  const j = jogo();
+  const h = STATE.historia;
+  let evenTotal = 0, oddTotal = 0, totalDez = 0;
+  let consecutiveTotal = 0;
+  const sums = [];
+  h.forEach(c => {
+    const dezs = getDezenas(c).map(Number).sort((a,b)=>a-b);
+    dezs.forEach(d => {
+      if (d % 2 === 0) evenTotal++; else oddTotal++;
+    });
+    totalDez += dezs.length;
+    let cons = 0;
+    for (let i=0;i<dezs.length-1;i++) if(dezs[i+1]-dezs[i]===1) cons++;
+    consecutiveTotal += cons;
+    sums.push(dezs.reduce((a,b)=>a+b,0));
+  });
+  const pctEven = totalDez ? (evenTotal/totalDez*100).toFixed(1) : '0';
+  const pctOdd = totalDez ? (oddTotal/totalDez*100).toFixed(1) : '0';
+  const avgCons = h.length ? (consecutiveTotal/h.length).toFixed(2) : '0';
+  const minSum = Math.min(...sums);
+  const maxSum = Math.max(...sums);
+  const avgSum = sums.length ? (sums.reduce((a,b)=>a+b,0)/sums.length).toFixed(1) : '0';
+
+  document.getElementById('stats-content').innerHTML = `
+    <div class="grid-2">
+      <div>
+        <div class="stat-row"><span class="stat-label">% Dezenas Pares</span><span class="stat-value">${pctEven}%</span></div>
+        <div class="stat-row"><span class="stat-label">% Dezenas Ímpares</span><span class="stat-value">${pctOdd}%</span></div>
+        <div class="stat-row"><span class="stat-label">Pares Consecutivos (média/jogo)</span><span class="stat-value">${avgCons}</span></div>
+      </div>
+      <div>
+        <div class="stat-row"><span class="stat-label">Soma Mínima (histórico)</span><span class="stat-value">${minSum}</span></div>
+        <div class="stat-row"><span class="stat-label">Soma Média (histórico)</span><span class="stat-value">${avgSum}</span></div>
+        <div class="stat-row"><span class="stat-label">Soma Máxima (histórico)</span><span class="stat-value">${maxSum}</span></div>
+      </div>
+    </div>`;
+}
+
+/* =============================================
+   RENDER CHART (bar, line, radar)
+============================================= */
+const CHART_ANIM = { animation: { duration: 800, easing: 'easeInOutQuart' } };
+
+function renderBarChart() {
+  const j = jogo();
+  const freq = buildFrequenciaSlice(STATE.historia, STATE.jogoKey, STATE.activePeriod);
+  const labels = Object.keys(freq).map(Number).sort((a,b)=>a-b).map(n => String(n).padStart(2,'0'));
+  const data = Object.keys(freq).map(Number).sort((a,b)=>a-b).map(n => freq[n]);
+
+  const ctx = document.getElementById('bar-chart').getContext('2d');
+  if (STATE.chartBar) STATE.chartBar.destroy();
+  STATE.chartBar = new Chart(ctx, {
+    type: 'bar',
     data: {
       labels,
       datasets: [{
-        label: "Aparições",
+        label: 'Frequência',
         data,
-        backgroundColor: cores,
+        backgroundColor: j.cor + 'bb',
+        borderColor: j.cor,
+        borderWidth: 1,
         borderRadius: 4,
-        borderSkipped: false,
       }]
     },
     options: {
+      ...CHART_ANIM,
       responsive: true,
-      maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: ctx => ` ${ctx.parsed.y} aparições`,
-          }
-        }
+        tooltip: { callbacks: { title: items => `Dezena ${items[0].label}` } }
       },
       scales: {
-        x: {
-          ticks: { color: "#8888bb", font: { size: 10 }, maxRotation: 90 },
-          grid:  { color: "rgba(255,255,255,0.04)" },
+        x: { ticks: { color: '#9099b0', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        y: { ticks: { color: '#9099b0' }, grid: { color: 'rgba(255,255,255,0.07)' } }
+      }
+    }
+  });
+}
+
+function renderLineChart() {
+  const j = jogo();
+  const h = STATE.historia;
+  // Get top 5 most frequent
+  const sorted = Object.entries(STATE.frequencia).sort((a,b)=>b[1]-a[1]).slice(0,5).map(e=>Number(e[0]));
+  const WINDOW = Math.min(50, h.length);
+  const slice = h.slice(-WINDOW);
+  // Build cumulative freq per concurso for each top number
+  const colors = [j.cor, '#ff6b6b','#ffd93d','#6bcb77','#4d96ff'];
+  const datasets = sorted.map((num, idx) => {
+    let cum = 0;
+    const data = slice.map(c => {
+      const dezs = getDezenas(c).map(Number);
+      if (dezs.includes(num)) cum++;
+      return cum;
+    });
+    return {
+      label: `Dezena ${String(num).padStart(2,'0')}`,
+      data,
+      borderColor: colors[idx],
+      backgroundColor: colors[idx]+'33',
+      fill: false,
+      tension: 0.35,
+      pointRadius: 0,
+      borderWidth: 2,
+    };
+  });
+
+  const ctx = document.getElementById('line-chart').getContext('2d');
+  if (STATE.chartLine) STATE.chartLine.destroy();
+  STATE.chartLine = new Chart(ctx, {
+    type: 'line',
+    data: { labels: slice.map((_,i)=>i+1), datasets },
+    options: {
+      ...CHART_ANIM,
+      responsive: true,
+      plugins: {
+        legend: { labels: { color: '#9099b0', font: { size: 11 } } },
+        tooltip: { mode: 'index', intersect: false }
+      },
+      scales: {
+        x: { ticks: { color: '#9099b0', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        y: { ticks: { color: '#9099b0' }, grid: { color: 'rgba(255,255,255,0.07)' } }
+      }
+    }
+  });
+}
+
+function renderRadarChart(game) {
+  const j = jogo();
+  // Divide number space into 10 sectors
+  const range = j.universo - j.inicio + 1;
+  const sectorSize = Math.ceil(range / 10);
+  const labels = [];
+  for (let i=0; i<10; i++) {
+    const lo = j.inicio + i*sectorSize;
+    const hi = Math.min(j.universo, lo + sectorSize - 1);
+    labels.push(`${lo}-${hi}`);
+  }
+  // Historical average distribution
+  const totalDraws = STATE.historia.length;
+  const histAvg = new Array(10).fill(0);
+  STATE.historia.forEach(c => {
+    getDezenas(c).map(Number).forEach(d => {
+      const idx = Math.min(9, Math.floor((d - j.inicio) / sectorSize));
+      histAvg[idx]++;
+    });
+  });
+  const histNorm = histAvg.map(v => totalDraws ? v/totalDraws : 0);
+  // Game distribution
+  const gameData = new Array(10).fill(0);
+  game.forEach(d => {
+    const idx = Math.min(9, Math.floor((d - j.inicio) / sectorSize));
+    gameData[idx]++;
+  });
+
+  document.getElementById('radar-placeholder').style.display = 'none';
+  document.getElementById('radar-wrap').style.display = 'block';
+
+  const ctx = document.getElementById('radar-chart').getContext('2d');
+  if (STATE.chartRadar) STATE.chartRadar.destroy();
+  STATE.chartRadar = new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Seu Jogo',
+          data: gameData,
+          borderColor: j.cor,
+          backgroundColor: j.cor + '44',
+          pointBackgroundColor: j.cor,
+          borderWidth: 2,
         },
-        y: {
-          ticks: { color: "#8888bb", font: { size: 10 } },
-          grid:  { color: "rgba(255,255,255,0.06)" },
+        {
+          label: 'Média Histórica',
+          data: histNorm,
+          borderColor: '#9099b0',
+          backgroundColor: 'rgba(144,153,176,0.15)',
+          pointBackgroundColor: '#9099b0',
+          borderWidth: 1.5,
+          borderDash: [4,4],
+        }
+      ]
+    },
+    options: {
+      ...CHART_ANIM,
+      responsive: true,
+      plugins: { legend: { labels: { color: '#9099b0' } } },
+      scales: {
+        r: {
+          ticks: { color: '#9099b0', backdropColor: 'transparent', font: { size: 10 } },
+          grid: { color: 'rgba(255,255,255,0.1)' },
+          pointLabels: { color: '#9099b0', font: { size: 10 } }
         }
       }
     }
   });
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   FREQUENCY TABLES
-   ═══════════════════════════════════════════════════════════════ */
-function renderTables(ranking, totalConcursos) {
-  const sorted    = [...ranking].sort((a, b) => b.ocorrencias - a.ocorrencias || a.dezena - b.dezena);
-  const maxOcc    = sorted[0]?.ocorrencias || 1;
+function renderComparisonChart(canvasId, jogoKey, historia) {
+  const j = JOGOS[jogoKey];
+  const freq = buildFrequencia(historia, jogoKey);
+  const labels = Object.keys(freq).map(Number).sort((a,b)=>a-b).map(n => String(n).padStart(2,'0'));
+  const data = Object.keys(freq).map(Number).sort((a,b)=>a-b).map(n => freq[n]);
 
-  // All
-  buildFreqTable("tbl-all", sorted, maxOcc, false);
-  // Hot (top 15)
-  buildFreqTable("tbl-hot", sorted.slice(0, 15), maxOcc, true);
-  // Cold (bottom 15)
-  const cold = [...ranking].sort((a, b) => a.ocorrencias - b.ocorrencias || a.dezena - b.dezena).slice(0, 15);
-  buildFreqTable("tbl-cold", cold, maxOcc, true);
-}
-
-function buildFreqTable(tableId, data, maxOcc, withRank) {
-  const tbody = document.querySelector(`#${tableId} tbody`);
-  tbody.innerHTML = "";
-  data.forEach((row, i) => {
-    const pct = (row.ocorrencias / maxOcc * 100).toFixed(0);
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      ${withRank ? `<td>${i + 1}</td>` : ""}
-      <td class="td-num">${String(row.dezena).padStart(2, "0")}</td>
-      <td>${row.ocorrencias}</td>
-      <td>${row.freq.toFixed(2)}%</td>
-      <td>
-        <div class="bar-cell">
-          <div class="mini-bar" style="width:${pct}%; max-width:120px"></div>
-          <span style="font-size:.72rem;color:var(--muted)">${pct}%</span>
-        </div>
-      </td>
-    `;
-    tbody.appendChild(tr);
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  const stateKey = canvasId === 'cmp-chart-a' ? 'chartCmpA' : 'chartCmpB';
+  if (STATE[stateKey]) STATE[stateKey].destroy();
+  STATE[stateKey] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label: j.nome, data, backgroundColor: j.cor+'bb', borderColor: j.cor, borderWidth:1, borderRadius:3 }]
+    },
+    options: {
+      ...CHART_ANIM,
+      responsive: true,
+      plugins: { legend: { labels: { color: '#9099b0' } } },
+      scales: {
+        x: { ticks: { color: '#9099b0', font: { size: 8 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        y: { ticks: { color: '#9099b0' }, grid: { color: 'rgba(255,255,255,0.07)' } }
+      }
+    }
   });
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   PROBABILIDADES
-   ═══════════════════════════════════════════════════════════════ */
-function renderProbabilidades(regra, slug) {
-  const grid = document.getElementById("prob-grid");
-  grid.innerHTML = "";
-  const { universo, dezenas, premios } = regra;
+/* =============================================
+   RENDER HEATMAP
+============================================= */
+function renderHeatmap() {
+  const j = jogo();
+  const freq = STATE.frequencia;
+  const nums = Object.keys(freq).map(Number).sort((a,b)=>a-b);
+  const vals = nums.map(n => freq[n]);
+  const maxV = Math.max(...vals) || 1;
+  const minV = Math.min(...vals);
 
-  // Aposta simples (dezenas mínimas)
-  const labelsPremio = {
-    megasena:  { 4: "Quadra", 5: "Quina", 6: "Sena (Jackpot)" },
-    lotofacil: { 11:"11 pontos",12:"12 pontos",13:"13 pontos",14:"14 pontos",15:"15 pontos (Jackpot)" },
-    quina:     { 2:"Duque",3:"Terno",4:"Quadra",5:"Quina (Jackpot)" },
-    lotomania: { 15:"15 pontos",16:"16 pontos",17:"17 pontos",18:"18 pontos",19:"19 pontos",20:"20 pontos (Jackpot)" },
-  };
+  const grid = document.getElementById('heatmap-grid');
+  const cols = Math.ceil(Math.sqrt(nums.length));
+  grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  grid.innerHTML = '';
 
-  const labels = labelsPremio[slug] || {};
-
-  for (const acertos of premios) {
-    const p = probAcertar(universo, dezenas, acertos, dezenas);
-    const div = document.createElement("div");
-    div.className = "prob-row";
-    div.innerHTML = `
-      <div class="acertos">${labels[acertos] || acertos + " acertos"}</div>
-      <div class="chance">${(p * 100).toExponential(3)}%</div>
-      <div class="ratio">${formatarChance(p)}</div>
-    `;
-    grid.appendChild(div);
-  }
-
-  // Total de combinações
-  const tot = comb(universo, dezenas);
-  const divTot = document.createElement("div");
-  divTot.className = "prob-row";
-  divTot.style.gridColumn = "1 / -1";
-  divTot.innerHTML = `
-    <div class="acertos">Total de combinações válidas</div>
-    <div class="chance" style="font-size:.85rem;color:var(--text)">${nf(tot)}</div>
-    <div class="ratio" style="color:var(--muted)">C(${universo},${dezenas})</div>
-  `;
-  grid.appendChild(divTot);
+  nums.forEach(n => {
+    const v = freq[n];
+    const t = (v - minV) / (maxV - minV || 1);
+    const cell = document.createElement('div');
+    cell.className = 'hm-cell';
+    // Color from very dark to lottery color
+    const r1=10,g1=10,b1=30; // cold color
+    const [rs,gs,bs] = j.cor.slice(1).match(/.{2}/g).map(h=>parseInt(h,16));
+    const r = Math.round(r1 + (rs-r1)*t);
+    const g = Math.round(g1 + (gs-g1)*t);
+    const b = Math.round(b1 + (bs-b1)*t);
+    cell.style.background = `rgb(${r},${g},${b})`;
+    cell.style.opacity = 0.5 + t*0.5;
+    cell.textContent = String(n).padStart(2,'0');
+    cell.setAttribute('data-tooltip', `Dezena ${n}: ${v}×`);
+    grid.appendChild(cell);
+  });
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   HISTÓRICO
-   ═══════════════════════════════════════════════════════════════ */
-function renderHistorico(historico) {
-  document.getElementById("badge-hist").textContent = `${historico.length} concursos`;
-  const tbody = document.querySelector("#tbl-history tbody");
-  tbody.innerHTML = "";
-  const slice = [...historico].reverse();
-  for (const h of slice) {
-    const tr = document.createElement("tr");
-    const bolas = h.Dezenas.map(d =>
-      `<span style="display:inline-block;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-weight:700;font-size:.78rem;margin:1px">${String(d).padStart(2,"0")}</span>`
-    ).join(" ");
-    tr.innerHTML = `
-      <td class="td-num">#${nf(h.Concurso)}</td>
-      <td style="color:var(--muted)">${h.Data}</td>
-      <td>${bolas}</td>
-    `;
-    tbody.appendChild(tr);
+/* =============================================
+   RENDER TABLES (frequency hot/cold/all)
+============================================= */
+function renderFreqTables() {
+  const j = jogo();
+  const freq = STATE.frequencia;
+  const sorted = Object.entries(freq).map(([k,v])=>({ num:Number(k), cnt:v })).sort((a,b)=>b.cnt-a.cnt);
+  const total = STATE.historia.length * j.dezenas || 1;
+  const maxV = sorted[0]?.cnt || 1;
+
+  function rowsHTML(arr) {
+    return arr.map((item, i) => {
+      const pct = ((item.cnt / total) * 100).toFixed(2);
+      const barW = Math.round((item.cnt / maxV) * 100);
+      return `<tr>
+        <td>${i+1}</td>
+        <td><div class="ball ball-xs" style="background:${j.cor};box-shadow:none;display:inline-flex;">${String(item.num).padStart(2,'0')}</div></td>
+        <td>${item.cnt}</td>
+        <td>${pct}%</td>
+        <td><div class="freq-bar-bg" style="width:80px;"><div class="freq-bar" style="width:${barW}%"></div></div></td>
+      </tr>`;
+    }).join('');
   }
+
+  document.getElementById('hot-tbody').innerHTML = rowsHTML(sorted.slice(0,15));
+  document.getElementById('cold-tbody').innerHTML = rowsHTML([...sorted].reverse().slice(0,15));
+  document.getElementById('all-tbody').innerHTML = rowsHTML(sorted);
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   GERADOR DE JOGOS
-   ═══════════════════════════════════════════════════════════════ */
-function gerarJogos() {
-  const { ranking, jogo } = estadoAtual;
-  if (!ranking.length || !jogo) return;
+/* =============================================
+   RENDER PAIRS
+============================================= */
+function renderPairs() {
+  const pairCounts = {};
+  STATE.historia.forEach(c => {
+    const dezs = getDezenas(c).map(Number).sort((a,b)=>a-b);
+    for (let i=0;i<dezs.length;i++)
+      for (let k=i+1;k<dezs.length;k++) {
+        const key = `${dezs[i]}-${dezs[k]}`;
+        pairCounts[key] = (pairCounts[key]||0)+1;
+      }
+  });
+  const sorted = Object.entries(pairCounts).sort((a,b)=>b[1]-a[1]).slice(0,20);
+  const maxV = sorted[0]?.[1] || 1;
+  const j = jogo();
 
-  const qtd     = parseInt(document.getElementById("sl-jogos").value, 10);
-  const metodo  = document.getElementById("sel-metodo").value;
-  const sorted  = [...ranking].sort((a, b) => b.ocorrencias - a.ocorrencias);
-  const maxOcc  = sorted[0]?.ocorrencias || 1;
-  const top25   = new Set(sorted.slice(0, Math.ceil(sorted.length * .25)).map(r => r.dezena));
-  const bot25   = new Set(sorted.slice(-Math.ceil(sorted.length * .25)).map(r => r.dezena));
+  const tbody = document.getElementById('pairs-tbody');
+  tbody.innerHTML = sorted.map(([pair, cnt]) => {
+    const barW = Math.round((cnt/maxV)*100);
+    return `<tr>
+      <td style="font-weight:700;letter-spacing:1px;">${pair}</td>
+      <td>${cnt}</td>
+      <td><div class="freq-bar-bg" style="width:100px;"><div class="freq-bar" style="width:${barW}%"></div></div></td>
+    </tr>`;
+  }).join('');
+}
 
-  const dezenas = ranking.map(r => r.dezena);
-  let pesos;
+/* =============================================
+   RENDER PROBABILITIES
+============================================= */
+function renderProbabilities() {
+  const j = jogo();
+  const tbody = document.getElementById('prob-tbody');
+  tbody.innerHTML = j.premios.map(acertos => {
+    const p = probAcertar(j.universo, j.dezenas, acertos);
+    const pct = (p * 100).toFixed(8);
+    const chance = formatarChance(p);
+    const label = j.labelPremio[acertos] || acertos;
+    return `<tr>
+      <td><strong>${label}</strong></td>
+      <td>1 em ${chance}</td>
+      <td>${pct}%</td>
+    </tr>`;
+  }).join('');
+}
 
-  if (metodo === "frequencia") {
-    pesos = ranking.map(r => r.ocorrencias + 1);
-    const soma = pesos.reduce((a, b) => a + b, 0);
-    pesos = pesos.map(p => p / soma);
-  } else {
-    pesos = new Array(dezenas.length).fill(1 / dezenas.length);
-  }
+/* =============================================
+   RENDER HISTORY
+============================================= */
+function renderHistory(filterNum = null) {
+  const j = jogo();
+  const h = [...STATE.historia].reverse().slice(0,100);
+  const freqMap = STATE.frequencia;
+  const tbody = document.getElementById('history-tbody');
 
-  const jogosGerados = new Set();
-  let tentativas = 0;
+  tbody.innerHTML = h.map(c => {
+    const dezs = getDezenas(c).map(Number).sort((a,b)=>a-b);
+    const highlight = filterNum && dezs.includes(filterNum);
+    const ballsHTML = dezs.map(d => {
+      const cnt = freqMap[d] || 0;
+      return `<div class="ball ball-xs" style="background:${j.cor};box-shadow:none;margin:2px;display:inline-flex;" data-tooltip="Dezena ${d} — ${cnt}× no histórico">${String(d).padStart(2,'0')}</div>`;
+    }).join('');
+    return `<tr class="${highlight ? 'highlight-row' : ''}">
+      <td>#${c.numero||''}</td>
+      <td style="white-space:nowrap;font-size:0.78rem;">${c.dataApuracao||c.data||''}</td>
+      <td><div style="display:flex;flex-wrap:wrap;gap:3px;">${ballsHTML}</div></td>
+    </tr>`;
+  }).join('');
+}
 
-  while (jogosGerados.size < qtd && tentativas < 100000) {
-    tentativas++;
-    const sorteio = amostraSemReposicao(dezenas, pesos, jogo.dezenas);
-    jogosGerados.add(sorteio.sort((a, b) => a - b).join(","));
-  }
-
-  const lista = [...jogosGerados].map(s => s.split(",").map(Number));
-
-  document.getElementById("badge-metodo").textContent =
-    metodo === "frequencia" ? "Freq. histórica" : "Aleatório";
-
-  const gamesEl = document.getElementById("games-list");
-  gamesEl.innerHTML = "";
-
-  for (let i = 0; i < lista.length; i++) {
-    const jg = lista[i];
-    const div = document.createElement("div");
-    div.className = "game-item";
-    div.innerHTML = `<div class="game-num">Jogo ${String(i + 1).padStart(2, "0")}</div>`;
-    const balls = document.createElement("div");
-    balls.className = "balls-row";
-    for (const d of jg) {
-      const ball = document.createElement("div");
-      ball.className = "ball-sm" + (top25.has(d) ? " ball-hot" : bot25.has(d) ? " ball-cold" : "");
-      ball.textContent = String(d).padStart(2, "0");
-      balls.appendChild(ball);
+/* =============================================
+   RENDER GAMES
+============================================= */
+function generateNumbers() {
+  const j = jogo();
+  const pool = [];
+  for (let i = j.inicio; i <= j.universo; i++) pool.push(i);
+  // Weighted random by frequency
+  const freq = STATE.frequencia;
+  const totalFreq = Object.values(freq).reduce((a,b)=>a+b,0) || 1;
+  const weights = pool.map(n => (freq[n]||0)/totalFreq + 0.01);
+  const totalW = weights.reduce((a,b)=>a+b,0);
+  const nums = [];
+  const used = new Set();
+  let attempts = 0;
+  while (nums.length < j.dezenas && attempts < 10000) {
+    attempts++;
+    let r = Math.random() * totalW;
+    for (let i=0;i<pool.length;i++) {
+      r -= weights[i];
+      if (r <= 0 && !used.has(pool[i])) { used.add(pool[i]); nums.push(pool[i]); break; }
     }
-    div.appendChild(balls);
-    gamesEl.appendChild(div);
   }
-
-  document.getElementById("card-jogos").style.display = "block";
-  document.getElementById("card-jogos").scrollIntoView({ behavior: "smooth", block: "start" });
+  // Fallback: fill remaining randomly if needed
+  if (nums.length < j.dezenas) {
+    const remaining = pool.filter(n => !used.has(n));
+    while (nums.length < j.dezenas && remaining.length > 0) {
+      const idx = Math.floor(Math.random() * remaining.length);
+      nums.push(remaining.splice(idx,1)[0]);
+    }
+  }
+  return nums.sort((a,b)=>a-b);
 }
 
-/* Amostragem sem reposição com pesos (algoritmo de Efraimidis-Spirakis) */
-function amostraSemReposicao(populacao, pesos, k) {
-  const keys = populacao.map((_, i) => Math.pow(Math.random(), 1 / pesos[i]));
-  const indices = keys
-    .map((k, i) => [k, i])
-    .sort((a, b) => b[0] - a[0])
-    .slice(0, k)
-    .map(([, i]) => i);
-  return indices.map(i => populacao[i]);
+function renderGames() {
+  const j = jogo();
+  const qtd = Math.max(1, Math.min(50, parseInt(document.getElementById('qtd-jogos').value)||5));
+  STATE.generatedGames = [];
+  for (let i=0;i<qtd;i++) STATE.generatedGames.push(generateNumbers());
+
+  const list = document.getElementById('generated-games-list');
+  list.innerHTML = '';
+  STATE.generatedGames.forEach((game, i) => {
+    const isFav = STATE.favorites.some(f => f.key === STATE.jogoKey && JSON.stringify(f.nums) === JSON.stringify(game));
+    const div = document.createElement('div');
+    div.className = 'game-card';
+    div.innerHTML = `
+      <div class="game-card-header">
+        <span style="font-size:0.82rem;color:var(--text-muted);">Jogo #${i+1}</span>
+        <div class="game-card-actions">
+          <button class="fav-btn" data-idx="${i}" title="Favoritar">${isFav ? '⭐' : '☆'}</button>
+          <button class="btn btn-ghost" data-share="${i}">📤 Compartilhar</button>
+        </div>
+      </div>
+      <div class="balls-container">${game.map(n=>`<div class="ball ball-sm" style="background:${j.cor};">${String(n).padStart(2,'0')}</div>`).join('')}</div>
+    `;
+    list.appendChild(div);
+  });
+
+  // Show export button
+  document.getElementById('btn-export-csv').style.display = 'inline-flex';
+
+  // Radar chart on first game
+  if (STATE.generatedGames.length > 0) renderRadarChart(STATE.generatedGames[0]);
+
+  // Confetti
+  const j2 = jogo();
+  const [r,g,b] = j2.cor.slice(1).match(/.{2}/g).map(h=>parseInt(h,16));
+  confetti({
+    particleCount: 100,
+    spread: 70,
+    origin: { y: 0.6 },
+    colors: [j2.cor, `rgb(${r},${g+50},${b+50})`, '#ffffff'],
+  });
 }
+
+/* =============================================
+   FAVORITES
+============================================= */
+function saveFavorites() {
+  localStorage.setItem('ll2_favorites', JSON.stringify(STATE.favorites));
+}
+
+function toggleFavorite(idx) {
+  const game = STATE.generatedGames[idx];
+  if (!game) return;
+  const key = STATE.jogoKey;
+  const existIdx = STATE.favorites.findIndex(f => f.key===key && JSON.stringify(f.nums)===JSON.stringify(game));
+  if (existIdx >= 0) {
+    STATE.favorites.splice(existIdx,1);
+  } else {
+    STATE.favorites.push({ key, nome: jogo().nome, nums: game, date: new Date().toLocaleDateString('pt-BR') });
+  }
+  saveFavorites();
+  renderGames();
+  renderFavorites();
+}
+
+function renderFavorites() {
+  const section = document.getElementById('favorites-section');
+  const list = document.getElementById('favorites-list');
+  if (STATE.favorites.length === 0) { section.classList.remove('visible'); return; }
+  section.classList.add('visible');
+  list.innerHTML = STATE.favorites.map((fav, i) => {
+    const j = JOGOS[fav.key] || jogo();
+    return `<div class="game-card" style="margin-bottom:10px;">
+      <div class="game-card-header">
+        <span style="font-size:0.82rem;color:var(--text-muted);">⭐ ${fav.nome} — ${fav.date}</span>
+        <button class="btn btn-danger" data-delfav="${i}">🗑️</button>
+      </div>
+      <div class="balls-container">${fav.nums.map(n=>`<div class="ball ball-sm" style="background:${j.cor};">${String(n).padStart(2,'0')}</div>`).join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+/* =============================================
+   CHECKER
+============================================= */
+function runChecker() {
+  const raw = document.getElementById('checker-input').value;
+  const nums = raw.split(/[\s,]+/).map(s=>parseInt(s)).filter(n=>!isNaN(n));
+  if (nums.length === 0) { alert('Por favor, insira seus números.'); return; }
+
+  const j = jogo();
+  const h = [...STATE.historia].reverse().slice(0,50);
+  const minPremio = j.premios[0];
+  const jackpot = j.premios[j.premios.length-1];
+
+  let html = `<table class="checker-table">
+    <thead><tr><th>Concurso</th><th>Data</th><th>Acertos</th><th>Resultado</th></tr></thead>
+    <tbody>`;
+
+  h.forEach(c => {
+    const dezs = getDezenas(c).map(Number);
+    const acertos = nums.filter(n => dezs.includes(n)).length;
+    let cls = '', label = 'Sem Prêmio';
+    if (acertos >= jackpot) { cls = 'match-jackpot'; label = '🏆 JACKPOT!'; }
+    else if (acertos >= minPremio) { cls = 'match-near'; label = `✅ ${j.labelPremio[acertos]||acertos+' acertos'}`; }
+    else { cls = 'match-miss'; label = `${acertos} acerto${acertos!==1?'s':''}`; }
+    html += `<tr>
+      <td>#${c.numero||''}</td>
+      <td style="font-size:0.78rem;">${c.dataApuracao||c.data||''}</td>
+      <td><strong>${acertos}</strong></td>
+      <td class="${cls}">${label}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  document.getElementById('checker-result').innerHTML = html;
+}
+
+/* =============================================
+   EXPORT & SHARE
+============================================= */
+function exportCSV() {
+  if (STATE.generatedGames.length === 0) return;
+  const j = jogo();
+  let csv = `Loteria,Jogo,${Array.from({length:j.dezenas},(_,i)=>'D'+(i+1)).join(',')}\n`;
+  STATE.generatedGames.forEach((g,i) => {
+    csv += `${j.nome},${i+1},${g.join(',')}\n`;
+  });
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `loteria_jogos_${STATE.jogoKey}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+function openShareModal(idx) {
+  const game = STATE.generatedGames[idx];
+  if (!game) return;
+  const j = jogo();
+  const text = `🎰 ${j.nome} — Jogo #${idx+1}\n🎱 ${game.map(n=>String(n).padStart(2,'0')).join(' - ')}\nGerado pelo Loteria Lab 2.0 🚀`;
+  STATE.shareGameText = text;
+  const encoded = encodeURIComponent(text);
+  document.getElementById('share-whatsapp').href = `https://wa.me/?text=${encoded}`;
+  document.getElementById('share-telegram').href = `https://t.me/share/url?url=https://loteria.app&text=${encoded}`;
+  document.getElementById('share-modal').classList.add('visible');
+}
+
+/* =============================================
+   COMPARISON MODE
+============================================= */
+async function loadComparisonPanel(panelId, jogoKey) {
+  const canvasId = `cmp-chart-${panelId}`;
+  try {
+    const data = await obterHistorico(jogoKey);
+    renderComparisonChart(canvasId, jogoKey, data);
+  } catch(e) {
+    console.error('Comparison load error:', e);
+  }
+}
+
+/* =============================================
+   MAIN ANALYSIS FLOW
+============================================= */
+async function analisar() {
+  const key = document.getElementById('jogo-select').value;
+  STATE.jogoKey = key;
+  setLotteryColor(key);
+  startCountdown();
+
+  document.getElementById('btn-analisar').disabled = true;
+  showSkeleton();
+  showStatus('Iniciando análise...', 2);
+
+  try {
+    const historia = await obterHistorico(key);
+    STATE.historia = historia;
+    STATE.frequencia = buildFrequencia(historia, key);
+
+    hideSkeleton();
+    showStatus('Renderizando...', 99);
+
+    showMainContent();
+    renderSummary();
+    renderStatistics();
+    renderBarChart();
+    renderLineChart();
+    renderHeatmap();
+    renderFreqTables();
+    renderPairs();
+    renderProbabilities();
+    renderHistory();
+    renderFavorites();
+
+    hideStatus();
+  } catch(e) {
+    hideSkeleton();
+    hideStatus();
+    alert('Erro ao carregar dados: ' + e.message);
+    console.error(e);
+  } finally {
+    document.getElementById('btn-analisar').disabled = false;
+  }
+}
+
+/* =============================================
+   EVENT LISTENERS
+============================================= */
+
+// Theme toggle
+document.getElementById('theme-toggle-btn').addEventListener('click', () => {
+  const cur = document.documentElement.getAttribute('data-theme');
+  applyTheme(cur === 'dark' ? 'light' : 'dark');
+});
+
+// Analyze button
+document.getElementById('btn-analisar').addEventListener('click', analisar);
+
+// Generate games button
+document.getElementById('btn-gerar').addEventListener('click', () => {
+  if (STATE.historia.length === 0) { alert('Clique em "Analisar" primeiro!'); return; }
+  renderGames();
+});
+
+// Export CSV
+document.getElementById('btn-export-csv').addEventListener('click', exportCSV);
+
+// Lottery selector → update color + countdown immediately
+document.getElementById('jogo-select').addEventListener('change', e => {
+  STATE.jogoKey = e.target.value;
+  setLotteryColor(e.target.value);
+  startCountdown();
+});
+
+// Period filter buttons
+document.querySelectorAll('.period-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    STATE.activePeriod = parseInt(this.dataset.period);
+    if (STATE.historia.length > 0) renderBarChart();
+  });
+});
+
+// Tab buttons
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const tabId = this.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    this.classList.add('active');
+    document.getElementById(tabId).classList.add('active');
+  });
+});
+
+// Checker button
+document.getElementById('btn-conferir').addEventListener('click', () => {
+  if (STATE.historia.length === 0) { alert('Clique em "Analisar" primeiro!'); return; }
+  runChecker();
+});
+
+// History search
+document.getElementById('history-search').addEventListener('input', function() {
+  const n = parseInt(this.value);
+  renderHistory(isNaN(n) ? null : n);
+});
+
+// Share modal close
+document.getElementById('share-modal-close').addEventListener('click', () => {
+  document.getElementById('share-modal').classList.remove('visible');
+});
+document.getElementById('share-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('share-modal'))
+    document.getElementById('share-modal').classList.remove('visible');
+});
+document.getElementById('share-copy').addEventListener('click', () => {
+  navigator.clipboard.writeText(STATE.shareGameText).then(() => {
+    const btn = document.getElementById('share-copy');
+    btn.innerHTML = '<span>✅</span> Copiado!';
+    setTimeout(() => btn.innerHTML = '<span>📋</span> Copiar para Área de Transferência', 2000);
+  });
+});
+
+// Delegated events on generated games list
+document.getElementById('generated-games-list').addEventListener('click', e => {
+  const favBtn = e.target.closest('.fav-btn');
+  const shareBtn = e.target.closest('[data-share]');
+  if (favBtn) toggleFavorite(parseInt(favBtn.dataset.idx));
+  if (shareBtn) openShareModal(parseInt(shareBtn.dataset.share));
+});
+
+// Delegated events on favorites
+document.getElementById('favorites-list').addEventListener('click', e => {
+  const delBtn = e.target.closest('[data-delfav]');
+  if (delBtn) {
+    STATE.favorites.splice(parseInt(delBtn.dataset.delfav), 1);
+    saveFavorites();
+    renderFavorites();
+  }
+});
+
+// Comparison toggle
+document.getElementById('compare-toggle-btn').addEventListener('click', () => {
+  const panel = document.getElementById('comparison-panel');
+  const visible = panel.classList.toggle('visible');
+  document.getElementById('compare-toggle-btn').textContent = visible ? '✖️' : '⚖️';
+});
+
+document.getElementById('btn-cmp-a').addEventListener('click', () => {
+  const key = document.getElementById('cmp-select-a').value;
+  loadComparisonPanel('a', key);
+});
+document.getElementById('btn-cmp-b').addEventListener('click', () => {
+  const key = document.getElementById('cmp-select-b').value;
+  loadComparisonPanel('b', key);
+});
+
+/* =============================================
+   INIT
+============================================= */
+(function init() {
+  // Apply saved theme
+  const savedTheme = localStorage.getItem('ll2_theme') || 'dark';
+  applyTheme(savedTheme);
+
+  // Apply initial lottery color
+  setLotteryColor('megasena');
+  startCountdown();
+
+  // Render existing favorites
+  renderFavorites();
+})();
 </script>
-
 </body>
 </html>
